@@ -1,0 +1,132 @@
+/* 学习打卡网页 · 全局主题（蓝白风）
+   主色变量集中管理，后续模块统一复用。 */
+:root {
+  --primary: #3b82f6;
+  --primary-dark: #2563eb;
+  --primary-light: #eff6ff;
+  --bg: #f8fafc;
+  --surface: #ffffff;
+  --text: #1e293b;
+  --text-muted: #64748b;
+  --border: #e2e8f0;
+  --radius: 12px;
+  --shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
+    'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.6;
+}
+
+/* 顶栏导航 */
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 0 20px;
+  height: 60px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  box-shadow: var(--shadow);
+}
+
+.brand {
+  font-weight: 700;
+  font-size: 18px;
+  color: var(--primary);
+  white-space: nowrap;
+}
+
+.nav {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+}
+
+.nav a {
+  color: var(--text-muted);
+  text-decoration: none;
+  padding: 8px 14px;
+  border-radius: 8px;
+  white-space: nowrap;
+  transition: background 0.15s, color 0.15s;
+}
+
+.nav a:hover {
+  background: var(--primary-light);
+  color: var(--primary);
+}
+
+.nav a.active {
+  background: var(--primary-light);
+  color: var(--primary);
+  font-weight: 600;
+}
+
+.topbar-right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* 内容区 */
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 24px 20px 48px;
+}
+
+.hero {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 48px 24px;
+  text-align: center;
+  margin-top: 24px;
+}
+
+.hero h1 {
+  margin: 0 0 8px;
+  color: var(--primary);
+}
+
+.hero .sub {
+  font-size: 16px;
+  color: var(--text);
+  margin: 0 0 8px;
+}
+
+.muted {
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+.footer {
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 13px;
+  padding: 24px;
+}
+
+/* 手机端导航可横向滚动，无需汉堡菜单即可触达 */
+@media (max-width: 768px) {
+  .topbar {
+    gap: 12px;
+  }
+  .brand {
+    font-size: 16px;
+  }
+}

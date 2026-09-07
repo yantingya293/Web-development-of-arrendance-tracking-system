@@ -1,0 +1,22 @@
+{
+  "name": "study-checkin-web",
+  "version": "0.1.0",
+  "description": "学习打卡网页：支持单人任务打卡与双人共同任务协作的轻量化网页",
+  "main": "app.js",
+  "private": true,
+  "scripts": {
+    "start": "node app.js",
+    "dev": "node --watch app.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "better-sqlite3": "^11.10.0",
+    "cookie-session": "^2.1.1",
+    "ejs": "^3.1.10",
+    "express": "^4.22.2",
+    "multer": "^2.3.0"
+  }
+}
