@@ -1,0 +1,19 @@
+<%- include('partials/header', { title, active: '' }) %>
+
+  <section class="card admin-card">
+    <h2>管理员后台</h2>
+    <p class="muted">当前管理员：<strong><%= currentUser.nickname %></strong>（<%= currentUser.account %>）</p>
+
+    <div class="admin-placeholder">
+      <p>后台功能占位页，完整能力将在 Day 14 细化：</p>
+      <ul class="muted">
+        <li>全站统计（总用户数 / 单人完成率 / 双人协作完成率）</li>
+        <li>任务管理（单人 / 公共双人任务批量管理）</li>
+        <li>用户管理（用户列表 / 禁用）</li>
+      </ul>
+    </div>
+
+    <p><a href="/" class="btn btn-outline">返回首页</a></p>
+  </section>
+
+<%- include('partials/footer') %>

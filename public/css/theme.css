@@ -121,6 +121,260 @@ body {
   padding: 24px;
 }
 
+/* ===== Day 3：按钮 / 表单 / 卡片 / 徽标 ===== */
+
+/* 按钮 */
+.btn {
+  display: inline-block;
+  padding: 8px 18px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  font-size: 14px;
+  line-height: 1.5;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.btn-primary {
+  background: var(--primary);
+  color: #fff;
+}
+
+.btn-primary:hover {
+  background: var(--primary-dark);
+}
+
+.btn-outline {
+  background: transparent;
+  color: var(--primary);
+  border-color: var(--primary);
+}
+
+.btn-outline:hover {
+  background: var(--primary-light);
+}
+
+.btn-sm {
+  padding: 5px 12px;
+  font-size: 13px;
+}
+
+.btn-block {
+  display: block;
+  width: 100%;
+  margin-top: 8px;
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* 卡片 */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 24px;
+}
+
+/* 表单 */
+.form-card h2 {
+  margin: 0 0 16px;
+  text-align: center;
+}
+
+.form-group {
+  margin-bottom: 14px;
+}
+
+.form-group label {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.form-group input {
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 14px;
+  color: var(--text);
+  background: var(--surface);
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.form-group input:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+}
+
+.field-error {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: #dc2626;
+  min-height: 0;
+}
+
+.field-error:empty {
+  display: none;
+}
+
+.form-hint {
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-muted);
+  margin: 14px 0 0;
+}
+
+.form-hint a {
+  color: var(--primary);
+}
+
+/* 提示条 */
+.alert {
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  margin-bottom: 14px;
+}
+
+.alert-error {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #b91c1c;
+}
+
+.alert-success {
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  color: #15803d;
+}
+
+/* 认证页布局 */
+.auth-wrap {
+  display: flex;
+  justify-content: center;
+  margin-top: 48px;
+}
+
+.form-card {
+  width: 100%;
+  max-width: 380px;
+}
+
+/* 顶栏用户区 */
+.user-chip {
+  color: var(--text);
+  font-weight: 600;
+  text-decoration: none;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.user-chip:hover {
+  color: var(--primary);
+}
+
+.badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.badge-admin {
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  color: #c2410c;
+}
+
+/* 首页行动按钮 */
+.hero-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  margin-top: 16px;
+}
+
+/* 个人中心占位 */
+.profile-card {
+  max-width: 640px;
+  margin: 24px auto 0;
+}
+
+.profile-head {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.profile-name {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.avatar {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--primary-light);
+  color: var(--primary);
+  font-size: 24px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.profile-placeholder,
+.admin-placeholder {
+  border-top: 1px dashed var(--border);
+  padding-top: 14px;
+}
+
+.profile-placeholder ul,
+.admin-placeholder ul {
+  margin: 6px 0 0;
+  padding-left: 20px;
+}
+
+/* 管理后台占位 */
+.admin-card {
+  max-width: 640px;
+  margin: 24px auto 0;
+}
+
+.admin-card h2 {
+  margin: 0 0 8px;
+  color: var(--primary);
+}
+
+/* 错误页 */
+.error-card {
+  max-width: 480px;
+  margin: 48px auto 0;
+  text-align: center;
+}
+
+.error-code {
+  font-size: 56px;
+  margin: 0;
+  color: var(--primary);
+}
+
 /* 手机端导航可横向滚动，无需汉堡菜单即可触达 */
 @media (max-width: 768px) {
   .topbar {

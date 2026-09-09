@@ -25,6 +25,14 @@ npm start
 npm run dev
 ```
 
+### 内置测试账号（种子数据）
+
+| 角色 | 账号 | 密码 |
+| --- | --- | --- |
+| 管理员 | `admin` | `admin123`（首次登录后请修改） |
+
+普通用户在注册页自助注册即可。
+
 ## 环境变量
 
 复制 `.env.example` 为 `.env` 后按需修改（本地默认值可直接运行，无需 .env）。
@@ -59,4 +67,7 @@ npm run dev
 - M3 扩展与打磨（Day 13–18）：数据统计 / 个人中心 / 响应式 / UI
 - M4 验收与交付（Day 19–21）：测试 / 安全 / 文档 / 部署
 
-当前进度：**Day 1 · 项目脚手架已就绪**。
+当前进度：**Day 3 · 数据库与用户系统已就绪**。
+
+- ✅ Day 2：SQLite 数据层 —— 七张表（users / tasks / checkins / teams / duo_tasks / duo_checkins / notifications）+ `src/db/db.js` 封装 + 种子数据；运行 `node dbCheck.js` 可验证（13 项检查）
+- ✅ Day 3：用户系统 —— 注册 / 登录 / 登出 / `me` 接口，bcrypt 密码哈希，Cookie+Session（7 天，httpOnly / SameSite=Lax），`requireAuth` / `requireAdmin` 中间件，登录 / 注册页面（客户端 + 服务端双重校验），首页用户区与登出，`/admin` 后台占位页（仅管理员）
