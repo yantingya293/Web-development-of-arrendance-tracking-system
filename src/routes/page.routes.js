@@ -1,12 +1,15 @@
 /**
- * 页面路由（Day 3）
+ * 页面路由（Day 3 建立，Day 4 补齐顶栏导航可达页）
  *
  * 模块说明：
- *   GET /          首页（导航 + 用户区，业务板块 Day 4 起填充）
+ *   GET /          首页（Day 4：四大板块骨架）
  *   GET /login     登录页（已登录则回首页）
  *   GET /register  注册页（已登录则回首页）
  *   GET /me        个人中心占位页（登录可见，Day 7 / 13 完善）
  *   GET /admin     管理员后台占位页（仅 admin，Day 14 细化）
+ *   GET /duo       双人协作广场占位页（Day 9 实现）
+ *   GET /gallery   全员打卡广场占位页（Day 12 实现）
+ *   GET /history   历史记录占位页（Day 7 实现）
  */
 const express = require('express');
 const { requireAuthPage, requireAdminPage } = require('../middleware/auth');
@@ -38,6 +41,34 @@ router.get('/me', requireAuthPage, (req, res) => {
 
 router.get('/admin', requireAdminPage, (req, res) => {
   res.render('admin', { title: '管理员后台', active: '' });
+});
+
+// 顶栏导航占位页（Day 4）：保证导航点击可达，功能按各里程碑逐步替换
+router.get('/duo', (req, res) => {
+  res.render('coming-soon', {
+    title: '双人协作广场',
+    active: 'duo',
+    heading: '双人协作广场',
+    message: '绑定搭档、发布共同任务与协作进度可视化将在 Day 8 / 9 上线。',
+  });
+});
+
+router.get('/gallery', (req, res) => {
+  res.render('coming-soon', {
+    title: '全员打卡广场',
+    active: 'gallery',
+    heading: '全员打卡广场',
+    message: '单人 / 双人公开成果展示与筛选将在 Day 12 上线。',
+  });
+});
+
+router.get('/history', (req, res) => {
+  res.render('coming-soon', {
+    title: '历史记录',
+    active: 'history',
+    heading: '历史记录',
+    message: '个人打卡历史、日期分组与筛选将在 Day 7 上线。',
+  });
 });
 
 module.exports = router;

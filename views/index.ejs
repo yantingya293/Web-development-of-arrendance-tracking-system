@@ -1,18 +1,106 @@
 <%- include('partials/header', { title, active: 'home' }) %>
 
-    <section class="hero">
-      <h1>学习打卡网页</h1>
-      <p class="sub">单人任务打卡 · 双人协作监督 · 全员成果展示</p>
+    <section class="hero hero-compact">
+      <div>
+        <h1>学习打卡网页</h1>
+        <p class="sub">单人任务打卡 · 双人协作监督 · 全员成果展示</p>
+      </div>
       <% if (currentUser) { %>
-        <p class="muted">你好，<strong><%= currentUser.nickname %></strong>！今天也要坚持打卡哦（Day 3 / 21，用户系统已上线）。</p>
+        <p class="muted">你好，<strong><%= currentUser.nickname %></strong>，今天也要坚持打卡哦。</p>
       <% } else { %>
-        <p class="muted">脚手架已就绪，注册并登录后即可开始使用（Day 3 / 21）。</p>
         <div class="hero-actions">
           <a href="/register" class="btn btn-primary">立即注册</a>
           <a href="/login" class="btn btn-outline">登录</a>
         </div>
       <% } %>
     </section>
-    <!-- Day4 起填充首页四大板块：左上单人任务 / 右上双人任务 / 中下左打卡表单 / 中下右实时动态 -->
+
+    <div class="home-grid">
+      <!-- 左上：个人独立任务 & 学习问题 -->
+      <section class="card section-card">
+        <div class="section-head">
+          <div class="section-title">
+            <h2>个人独立任务 &amp; 学习问题</h2>
+            <span class="tag tag-solo">单人</span>
+          </div>
+        </div>
+        <div class="section-body">
+          <%- include('partials/components/empty', {
+                emptyTitle: '暂无单人任务',
+                emptyHint: '每日任务 / 每周重点 / 学习问题列表将在 Day 5 上线。'
+              }) %>
+        </div>
+      </section>
+
+      <!-- 右上：双人共同协作任务 -->
+      <section class="card section-card">
+        <div class="section-head">
+          <div class="section-title">
+            <h2>双人共同协作任务</h2>
+            <span class="tag tag-duo">双人</span>
+          </div>
+        </div>
+        <div class="section-body">
+          <%- include('partials/components/empty', {
+                emptyTitle: '暂未绑定学习搭档',
+                emptyHint: '组队绑定与共同任务发布将在 Day 8 / 9 上线。',
+                emptyActionText: '了解双人协作',
+                emptyActionHref: '/duo'
+              }) %>
+        </div>
+      </section>
+
+      <!-- 中下左：打卡提交区 -->
+      <section class="card section-card">
+        <div class="section-head">
+          <div class="section-title">
+            <h2>打卡提交</h2>
+            <span class="tag">占位 · Day 6</span>
+          </div>
+        </div>
+        <div class="section-body">
+          <form class="checkin-form" id="checkinForm" aria-describedby="checkinHint" onsubmit="return false;">
+            <div class="form-group">
+              <label for="checkinTask">选择任务</label>
+              <select id="checkinTask" name="taskId" disabled>
+                <option>请先选择打卡类型</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>上传照片</label>
+              <div class="upload-zone">支持 JPG / PNG / JPEG，单张 ≤ 10MB</div>
+            </div>
+            <div class="form-group">
+              <label for="checkinNote">学习备注</label>
+              <textarea id="checkinNote" name="note" placeholder="记录今天的学习心得 / 遇到的问题…" disabled></textarea>
+            </div>
+            <button type="submit" class="btn btn-primary btn-block" disabled>提交打卡</button>
+            <p class="form-hint" id="checkinHint">表单为 Day 4 骨架占位，照片上传与提交将在 Day 6 接入。</p>
+          </form>
+        </div>
+      </section>
+
+      <!-- 中下右：实时打卡动态 -->
+      <section class="card section-card">
+        <div class="section-head">
+          <div class="section-title">
+            <h2>实时打卡动态</h2>
+            <span class="tag">最新 10 条</span>
+          </div>
+          <button type="button" id="refreshFeedBtn" class="btn btn-outline btn-sm">刷新</button>
+        </div>
+        <div class="section-body" id="feedBody">
+          <div class="feed-loading" hidden>
+            <%- include('partials/components/loading', { text: '正在加载最新动态…' }) %>
+          </div>
+          <div class="feed-empty">
+            <%- include('partials/components/empty', {
+                  emptyTitle: '暂无打卡动态',
+                  emptyHint: '单人 / 双人打卡记录将在 Day 6 / 7 接入。'
+                }) %>
+          </div>
+        </div>
+      </section>
+    </div>
 
 <%- include('partials/footer') %>

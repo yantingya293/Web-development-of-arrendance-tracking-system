@@ -48,9 +48,12 @@ npm run dev
 ```
 ├── app.js                 # 服务入口
 ├── views/                 # EJS 模板
+│   ├── partials/          # 公共布局（header / footer）
+│   │   └── components/    # 通用组件（loading / empty / toast）
+│   └── index.ejs          # 首页四板块骨架
 ├── public/
-│   ├── css/               # 样式（theme.css 统一主题）
-│   ├── js/                # 前端脚本
+│   ├── css/               # 样式（theme.css 统一主题与设计变量）
+│   ├── js/                # 前端脚本（app.js 公共交互 / auth.js 认证表单）
 │   └── uploads/           # 打卡照片上传目录（git 忽略）
 └── src/
     ├── routes/            # 路由层
@@ -67,7 +70,10 @@ npm run dev
 - M3 扩展与打磨（Day 13–18）：数据统计 / 个人中心 / 响应式 / UI
 - M4 验收与交付（Day 19–21）：测试 / 安全 / 文档 / 部署
 
-当前进度：**Day 3 · 数据库与用户系统已就绪**。
+当前进度：**Day 4 · 全站前端骨架已就绪**。
 
 - ✅ Day 2：SQLite 数据层 —— 七张表（users / tasks / checkins / teams / duo_tasks / duo_checkins / notifications）+ `src/db/db.js` 封装 + 种子数据；运行 `node dbCheck.js` 可验证（13 项检查）
 - ✅ Day 3：用户系统 —— 注册 / 登录 / 登出 / `me` 接口，bcrypt 密码哈希，Cookie+Session（7 天，httpOnly / SameSite=Lax），`requireAuth` / `requireAdmin` 中间件，登录 / 注册页面（客户端 + 服务端双重校验），首页用户区与登出，`/admin` 后台占位页（仅管理员）
+- ✅ Day 4：前端基础布局 + 首页骨架 —— `theme.css` 补全设计变量（主色 / 字号 / 间距 / 阴影 / 语义色）与响应式断点（900 / 768 / 480px）；首页四板块（左上单人任务 / 右上双人任务 / 中下左打卡表单 / 中下右实时动态）；通用组件 `loading` / `empty` / `toast`（`views/partials/components/`，Toast 经 `window.showToast()` 调用）；顶栏用户菜单可点击展开（个人中心 / 管理后台 / 登出，ESC 与点击外部收起）；`/duo`、`/gallery`、`/history` 导航占位页可达
+
+> Day 4 说明：打卡表单与实时动态为骨架占位，数据源分别在 Day 6 / Day 7 接入；「刷新」按钮目前演示 Loading → Empty 状态切换。

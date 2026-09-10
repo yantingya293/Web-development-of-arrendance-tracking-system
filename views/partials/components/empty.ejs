@@ -1,0 +1,11 @@
+<%# 通用 Empty 组件（Day 4）· 可传 emptyTitle / emptyHint，以及成对的 emptyActionText + emptyActionHref %>
+<div class="empty-state">
+  <span class="empty-illustration" aria-hidden="true"></span>
+  <p class="empty-title"><%= typeof emptyTitle === 'undefined' ? '暂无数据' : emptyTitle %></p>
+  <% if (typeof emptyHint !== 'undefined' && emptyHint) { %>
+    <p class="empty-hint muted"><%= emptyHint %></p>
+  <% } %>
+  <% if (typeof emptyActionHref !== 'undefined' && emptyActionHref) { %>
+    <a class="btn btn-outline btn-sm" href="<%= emptyActionHref %>"><%= emptyActionText %></a>
+  <% } %>
+</div>
