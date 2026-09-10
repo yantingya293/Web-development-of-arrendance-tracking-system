@@ -1,0 +1,25 @@
+<%- include('partials/header', { title, active: 'me' }) %>
+
+  <section class="card profile-card">
+    <div class="profile-head">
+      <div class="avatar"><%= currentUser.nickname.slice(0, 1) %></div>
+      <div>
+        <h2 class="profile-name">
+          <%= currentUser.nickname %>
+          <% if (currentUser.role === 'admin') { %><span class="badge badge-admin">管理员</span><% } %>
+        </h2>
+        <p class="muted">账号：<%= currentUser.account %> · 注册于 <%= currentUser.created_at %></p>
+      </div>
+    </div>
+
+    <div class="profile-placeholder">
+      <p class="muted">个人中心建设中：</p>
+      <ul class="muted">
+        <li>打卡历史与筛选 —— Day 7</li>
+        <li>近 7 天打卡热度图 —— Day 7</li>
+        <li>数据统计图表 · 组队信息 · 个人设置 —— Day 13 / 14</li>
+      </ul>
+    </div>
+  </section>
+
+<%- include('partials/footer') %>
