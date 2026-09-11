@@ -1,5 +1,8 @@
 /**
- * dbCheck.js —— Day 2 验收脚本：确认所有表可读写、约束生效、种子数据可见
+ * dbCheck.js —— 验收脚本：确认所有表可读写、约束生效、种子数据可见
+ *
+ * Day 2：建库 / 约束 / 种子数据（13 项）
+ * Day 5：单人任务服务层（创建归一化 / 校验 / 状态流转 / 越权 / 逾期标记 / 可见性，7 项）
  *
  * 运行：node dbCheck.js
  * 说明：探针写入全部包在一个事务里并在结束时 ROLLBACK，不会污染数据文件。
@@ -165,6 +168,77 @@ function main() {
       db.prepare(`DELETE FROM teams WHERE id = ?`).run(teamId);
       const left = db.prepare(`SELECT COUNT(*) AS n FROM duo_tasks WHERE team_id = ?`).get(teamId).n;
       if (left !== 0) throw new Error('duo_tasks 未随 teams 级联删除');
+    });
+
+    // --- Day 5：单人任务服务（service 层与探针共用同一连接，写入随事务回滚） ---
+    const taskService = require('./src/services/task.service');
+    let day5TaskId;
+    check('task.service 创建单人任务（datetime-local 格式归一化）', () => {
+      const task = taskService.createSoloTask(userAId, {
+        title: '探针：每日背 50 个单词',
+        description: '',
+        category: 'daily',
+        deadline: '2099-01-02T08:30', // 前端 datetime-local 格式 → '2099-01-02 08:30:00'
+      });
+      day5TaskId = task.id;
+      if (
+        task.type !== 'solo' ||
+        task.category !== 'daily' ||
+        task.deadline !== '2099-01-02 08:30:00'
+      )
+        throw new Error('创建结果不一致: ' + JSON.stringify(task));
+    });
+    check('tasks category CHECK 约束（非法分类拒绝）', () => {
+      expectConstraint(() =>
+        db.prepare(`INSERT INTO tasks (title, category) VALUES ('坏分类', 'monthly')`).run()
+      );
+    });
+    check('task.service 表单校验（空标题 / 非法分类 / 非法时间）', () => {
+      let caught;
+      try {
+        taskService.createSoloTask(userAId, { title: '   ', category: 'bad', deadline: '2026-13-99' });
+      } catch (err) {
+        caught = err;
+      }
+      if (!caught || caught.status !== 400) throw new Error('未按预期抛出 400');
+      const e = caught.errors || {};
+      if (!e.title || !e.category || !e.deadline) throw new Error('错误字段缺失: ' + JSON.stringify(e));
+    });
+    check('task.service 状态流转 + overdue 不可手动设置', () => {
+      const t = taskService.updateSoloTaskStatus({ id: userAId, role: 'user' }, day5TaskId, 'in_progress');
+      if (t.status !== 'in_progress') throw new Error('状态未更新');
+      let caught;
+      try {
+        taskService.updateSoloTaskStatus({ id: userAId, role: 'user' }, day5TaskId, 'overdue');
+      } catch (err) {
+        caught = err;
+      }
+      if (!caught || caught.status !== 400) throw new Error('overdue 应由系统自动判定，不允许手动设置');
+    });
+    check('task.service 越权防护（他人任务不可删）', () => {
+      let caught;
+      try {
+        taskService.deleteSoloTask({ id: userBId, role: 'user' }, day5TaskId);
+      } catch (err) {
+        caught = err;
+      }
+      if (!caught || caught.status !== 403) throw new Error('未按预期抛出 403');
+    });
+    check('task.service 过期任务自动标记 overdue', () => {
+      const past = taskService.createSoloTask(userAId, {
+        title: '探针：昨天的任务',
+        category: 'weekly',
+        deadline: '2000-01-01 00:00:00',
+      });
+      const row = taskService.listSoloTasks(userAId).find((t) => t.id === past.id);
+      if (!row || row.status !== 'overdue') throw new Error('过期任务未被标记 overdue');
+    });
+    check('task.service 列表可见性（自己的 + 公共，他人不可见）', () => {
+      const mine = taskService.listSoloTasks(userAId);
+      if (!mine.some((t) => t.id === day5TaskId)) throw new Error('自己的任务不可见');
+      if (!mine.some((t) => t.owner_id === null)) throw new Error('公共任务不可见');
+      const others = taskService.listSoloTasks(userBId);
+      if (others.some((t) => t.id === day5TaskId)) throw new Error('他人任务不应可见');
     });
   } finally {
     db.exec('ROLLBACK'); // 所有探针数据不落盘

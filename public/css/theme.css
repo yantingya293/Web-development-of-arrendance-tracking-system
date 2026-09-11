@@ -858,3 +858,302 @@ body {
     max-width: none;
   }
 }
+
+/* ===== Day 5：单人任务板块（分类筛选 / 任务卡片 / 新建编辑弹窗） ===== */
+
+/* ---- 分类筛选 tabs ---- */
+.task-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-4);
+}
+
+.task-tabs .tab {
+  padding: 5px 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: var(--fs-sm);
+  cursor: pointer;
+  transition: background var(--transition), color var(--transition), border-color var(--transition);
+}
+
+.task-tabs .tab:hover {
+  border-color: #bfdbfe;
+  color: var(--primary-dark);
+}
+
+.task-tabs .tab.active {
+  background: var(--primary-light);
+  border-color: #bfdbfe;
+  color: var(--primary-dark);
+  font-weight: 600;
+}
+
+.tab-count {
+  display: inline-block;
+  min-width: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--bg);
+  font-size: var(--fs-xs);
+  text-align: center;
+}
+
+.task-tabs .tab.active .tab-count {
+  background: var(--surface);
+}
+
+/* ---- 任务列表与卡片 ---- */
+.task-list-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.task-card {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  transition: border-color var(--transition), box-shadow var(--transition);
+}
+
+.task-card:hover {
+  border-color: #bfdbfe;
+  box-shadow: var(--shadow-sm);
+}
+
+.task-card-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.task-card-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-1);
+}
+
+.task-card-title {
+  margin: 0 0 2px;
+  font-size: var(--fs-lg);
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.task-card.completed .task-card-title {
+  color: var(--text-muted);
+  text-decoration: line-through;
+}
+
+.task-card-desc {
+  display: -webkit-box;
+  margin: 0 0 var(--sp-1);
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
+.task-card-meta {
+  margin: 0;
+  font-size: var(--fs-xs);
+}
+
+.task-card-actions {
+  display: flex;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--sp-2);
+}
+
+/* 卡片操作按钮（幽灵样式，弱于主按钮） */
+.task-card-actions .btn {
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text-muted);
+}
+
+.task-card-actions .btn:hover {
+  border-color: #bfdbfe;
+  color: var(--primary);
+}
+
+.task-card-actions .btn-danger-ghost:hover {
+  border-color: #fecaca;
+  color: var(--danger);
+}
+
+/* ---- 分类标签（daily / weekly / question） ---- */
+.tag-cat-daily {
+  background: var(--primary-light);
+  border-color: #bfdbfe;
+  color: var(--primary-dark);
+}
+
+.tag-cat-weekly {
+  background: var(--warning-light);
+  border-color: #fde68a;
+  color: #b45309;
+}
+
+.tag-cat-question {
+  background: #f5f3ff;
+  border-color: #ddd6fe;
+  color: #6d28d9;
+}
+
+/* ---- 状态标签（unstarted / in_progress / completed / overdue） ---- */
+.tag-st-unstarted {
+  color: var(--text-muted);
+}
+
+.tag-st-in_progress {
+  background: var(--primary-light);
+  border-color: #bfdbfe;
+  color: var(--primary-dark);
+}
+
+.tag-st-completed {
+  background: var(--success-light);
+  border-color: #bbf7d0;
+  color: var(--success);
+}
+
+.tag-st-overdue {
+  background: var(--danger-light);
+  border-color: #fecaca;
+  color: var(--danger);
+}
+
+/* ---- 新建 / 编辑弹窗 ---- */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--sp-4);
+  background: rgba(15, 23, 42, 0.45);
+}
+
+.modal-overlay[hidden] {
+  display: none;
+}
+
+.modal {
+  width: min(480px, 100%);
+  max-height: calc(100vh - 2 * var(--sp-5));
+  overflow-y: auto;
+  padding: var(--sp-5);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
+  animation: modal-in 0.18s ease;
+}
+
+@keyframes modal-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+  }
+}
+
+.modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--sp-4);
+}
+
+.modal-head h3 {
+  margin: 0;
+  font-size: var(--fs-xl);
+}
+
+.modal-close {
+  padding: 2px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 20px;
+  line-height: 1.4;
+  cursor: pointer;
+}
+
+.modal-close:hover {
+  background: var(--bg);
+  color: var(--text);
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--sp-3);
+  margin-top: var(--sp-4);
+}
+
+/* ---- 弹窗内的分类单选（药丸样式） ---- */
+.radio-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+
+.radio-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 14px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  cursor: pointer;
+  transition: background var(--transition), border-color var(--transition), color var(--transition);
+}
+
+.radio-pill:hover {
+  border-color: #bfdbfe;
+  color: var(--primary-dark);
+}
+
+.radio-pill input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.radio-pill:has(input:checked) {
+  background: var(--primary-light);
+  border-color: #bfdbfe;
+  color: var(--primary-dark);
+  font-weight: 600;
+}
+
+/* ---- Day 5 响应式补充 ---- */
+@media (max-width: 480px) {
+  .task-card {
+    flex-direction: column;
+  }
+  .task-card-actions {
+    justify-content: flex-start;
+  }
+  .task-tabs .tab {
+    padding: 5px 10px;
+  }
+}

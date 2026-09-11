@@ -6,6 +6,7 @@ const { initDb } = require('./src/db/db');
 const { seedIfEmpty } = require('./src/db/seed');
 const { findPublicById } = require('./src/services/user.service');
 const authRoutes = require('./src/routes/auth.routes');
+const taskRoutes = require('./src/routes/task.routes');
 const pageRoutes = require('./src/routes/page.routes');
 
 // Day 2：启动即建库 + 补种（幂等）
@@ -49,6 +50,7 @@ app.use((req, res, next) => {
 });
 
 app.use('/api/auth', authRoutes);
+app.use('/api/tasks', taskRoutes); // Day 5：单人任务 CRUD
 app.use('/', pageRoutes);
 
 // 404 兜底

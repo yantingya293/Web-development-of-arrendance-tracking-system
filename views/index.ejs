@@ -16,19 +16,37 @@
     </section>
 
     <div class="home-grid">
-      <!-- 左上：个人独立任务 & 学习问题 -->
+      <!-- 左上：个人独立任务 & 学习问题（Day 5 接入真实数据） -->
       <section class="card section-card">
         <div class="section-head">
           <div class="section-title">
             <h2>个人独立任务 &amp; 学习问题</h2>
             <span class="tag tag-solo">单人</span>
           </div>
+          <% if (currentUser) { %>
+            <button type="button" id="newTaskBtn" class="btn btn-primary btn-sm">+ 新建任务</button>
+          <% } %>
         </div>
         <div class="section-body">
-          <%- include('partials/components/empty', {
-                emptyTitle: '暂无单人任务',
-                emptyHint: '每日任务 / 每周重点 / 学习问题列表将在 Day 5 上线。'
-              }) %>
+          <% if (currentUser) { %>
+            <div class="task-tabs" id="taskTabs" role="group" aria-label="任务分类筛选">
+              <button type="button" class="tab active" data-filter="all">全部 <span class="tab-count">0</span></button>
+              <button type="button" class="tab" data-filter="daily">每日任务 <span class="tab-count">0</span></button>
+              <button type="button" class="tab" data-filter="weekly">每周重点 <span class="tab-count">0</span></button>
+              <button type="button" class="tab" data-filter="question">学习问题 <span class="tab-count">0</span></button>
+            </div>
+            <div class="task-list-body" id="taskListBody"
+                 data-viewer-id="<%= currentUser.id %>" data-viewer-role="<%= currentUser.role %>">
+              <%- include('partials/components/loading', { text: '正在加载任务…' }) %>
+            </div>
+          <% } else { %>
+            <%- include('partials/components/empty', {
+                  emptyTitle: '登录后管理你的学习任务',
+                  emptyHint: '每日任务 / 每周重点 / 学习问题分类管理，创建后即可拍照打卡。',
+                  emptyActionText: '立即登录',
+                  emptyActionHref: '/login'
+                }) %>
+          <% } %>
         </div>
       </section>
 
@@ -102,5 +120,58 @@
         </div>
       </section>
     </div>
+
+    <% if (currentUser) { %>
+      <!-- Day 5：单人任务 新建 / 编辑 弹窗 -->
+      <div class="modal-overlay" id="taskModal" hidden>
+        <div class="modal" role="dialog" aria-modal="true" aria-labelledby="taskModalTitle">
+          <div class="modal-head">
+            <h3 id="taskModalTitle">新建任务</h3>
+            <button type="button" class="modal-close" id="taskModalClose" aria-label="关闭">×</button>
+          </div>
+          <form id="taskForm" novalidate>
+            <input type="hidden" id="taskFormId" name="id" value="" />
+            <div class="form-group">
+              <label>任务分类</label>
+              <div class="radio-row" id="taskCategoryRow">
+                <label class="radio-pill">
+                  <input type="radio" name="category" value="daily" checked />每日任务
+                </label>
+                <label class="radio-pill">
+                  <input type="radio" name="category" value="weekly" />每周重点
+                </label>
+                <label class="radio-pill">
+                  <input type="radio" name="category" value="question" />学习问题
+                </label>
+              </div>
+              <p class="field-error" data-error-for="category"></p>
+            </div>
+            <div class="form-group">
+              <label for="taskTitle">任务标题</label>
+              <input id="taskTitle" name="title" type="text" maxlength="50"
+                     placeholder="一句话描述任务，如：完成高数第三章习题" />
+              <p class="field-error" data-error-for="title"></p>
+            </div>
+            <div class="form-group">
+              <label for="taskDesc">任务说明（可选）</label>
+              <textarea id="taskDesc" name="description" maxlength="500"
+                        placeholder="补充要求、教材页码、验收标准…"></textarea>
+              <p class="field-error" data-error-for="description"></p>
+            </div>
+            <div class="form-group">
+              <label for="taskDeadline">截止时间（可选）</label>
+              <input id="taskDeadline" name="deadline" type="datetime-local" />
+              <p class="field-error" data-error-for="deadline"></p>
+            </div>
+            <div class="alert alert-error" id="taskFormError" hidden></div>
+            <div class="modal-actions">
+              <button type="button" class="btn btn-outline" id="taskModalCancel">取消</button>
+              <button type="submit" class="btn btn-primary">保存任务</button>
+            </div>
+          </form>
+        </div>
+      </div>
+      <script src="/js/tasks.js" defer></script>
+    <% } %>
 
 <%- include('partials/footer') %>

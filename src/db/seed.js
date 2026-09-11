@@ -4,7 +4,8 @@
  * 模块说明：
  *   seedIfEmpty()  仅当 users 表为空时写入种子数据，幂等可重复调用：
  *                    1. 管理员账号 admin / admin123（首次上线后请登录修改密码）
- *                    2. 几个示例单人任务（覆盖未开始 / 进行中 / 已逾期三种状态）
+ *                    2. 几个示例单人任务（覆盖 daily / weekly / question 三类分类
+ *                       与未开始 / 进行中 / 已逾期三种状态，Day 5 起带 category 字段）
  *   直接运行本文件可手动补种：node src/db/seed.js
  */
 const bcrypt = require('bcryptjs');
@@ -28,28 +29,32 @@ function buildSeedRows(now) {
   return [
     {
       type: 'solo',
-      title: '每日任务：完成高数第三章课后习题',
+      category: 'daily',
+      title: '完成高数第三章课后习题',
       description: '完成教材 P56–P58 全部习题，拍照上传打卡。',
       deadline: daysFromNow(0), // 今天截止 → 未开始
       status: 'unstarted',
     },
     {
       type: 'solo',
-      title: '每周重点：英语阅读真题一套',
+      category: 'weekly',
+      title: '英语阅读真题一套',
       description: '限时 60 分钟完成 2024 年 Text 1–4，校对答案并整理错题。',
       deadline: daysFromNow(3),
       status: 'in_progress',
     },
     {
       type: 'solo',
-      title: '学习问题：如何高效记忆专业课名词解释',
+      category: 'question',
+      title: '如何高效记忆专业课名词解释',
       description: '尝试艾宾浩斯记忆法实践一周，记录效果对比。',
       deadline: daysFromNow(-1), // 昨天截止 → 已逾期示例
       status: 'overdue',
     },
     {
       type: 'solo',
-      title: '示例任务：整理错题本第 1 章',
+      category: 'daily',
+      title: '整理错题本第 1 章',
       description: '由管理员发布的公共任务，所有用户可见可打卡。',
       deadline: null,
       status: 'unstarted',
@@ -72,8 +77,8 @@ function seedIfEmpty() {
     ).run(ADMIN.nickname, ADMIN.account, hash, ADMIN.role);
 
     const insertTask = db.prepare(
-      `INSERT INTO tasks (owner_id, type, title, description, deadline, status)
-       VALUES (NULL, @type, @title, @description, @deadline, @status)`
+      `INSERT INTO tasks (owner_id, type, category, title, description, deadline, status)
+       VALUES (NULL, @type, @category, @title, @description, @deadline, @status)`
     );
     for (const task of buildSeedRows(now)) insertTask.run(task);
   });

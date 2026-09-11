@@ -24,6 +24,8 @@ CREATE TABLE IF NOT EXISTS tasks (
   owner_id    INTEGER REFERENCES users(id) ON DELETE CASCADE,  -- NULL = 公共任务
   type        TEXT    NOT NULL DEFAULT 'solo'
               CHECK (type IN ('solo', 'duo')),
+  category    TEXT    NOT NULL DEFAULT 'daily'
+              CHECK (category IN ('daily', 'weekly', 'question')),  -- daily=每日任务 weekly=每周重点 question=学习问题（Day 5 引入）
   title       TEXT    NOT NULL,
   description TEXT    NOT NULL DEFAULT '',
   deadline    TEXT,                                  -- 'YYYY-MM-DD HH:MM:SS'，空 = 无截止
