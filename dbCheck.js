@@ -8,6 +8,7 @@
  * Day 8：双人组队服务层（邀请校验 / 单发出约束 / 接受建队 / 解绑，4 项）
  * Day 9：双人共同任务服务层（创建装饰 / 状态与逾期，2 项）
  * Day 10：双人打卡服务层（打卡联动通知 / 每日一次 / 双方进度 / 完成拦截，4 项）
+ * 安全加固：改密与会话作废 / 上传魔数校验（3 项，检查器支持 async）
  *
  * 运行：node dbCheck.js
  * 说明：探针写入全部包在一个事务里并在结束时 ROLLBACK，不会污染数据文件。
@@ -16,9 +17,9 @@ const { initDb, getDb } = require('./src/db/db');
 const { seedIfEmpty } = require('./src/db/seed');
 
 const results = [];
-function check(name, fn) {
+async function check(name, fn) {
   try {
-    fn();
+    await fn();
     results.push({ name, ok: true });
   } catch (err) {
     results.push({ name, ok: false, err });
@@ -36,7 +37,7 @@ function expectConstraint(fn) {
   throw new Error('预期应触发约束错误，但写入成功了');
 }
 
-function main() {
+async function main() {
   initDb();
   const seeded = seedIfEmpty();
   const db = getDb();
@@ -48,7 +49,7 @@ function main() {
   db.exec('BEGIN IMMEDIATE'); // 探针事务，结束时统一回滚
   try {
     // --- users：写入 + 读回 ---
-    check('users 建表 + 写入/读回', () => {
+    await check('users 建表 + 写入/读回', () => {
       db.prepare(
         `INSERT INTO users (nickname, account, password_hash, role) VALUES (?, ?, ?, ?)`
       ).run('测试用户A', '__dbcheck_a__', 'hash_a', 'user');
@@ -60,7 +61,7 @@ function main() {
     });
 
     let userAId, userBId;
-    check('users 账号唯一约束', () => {
+    await check('users 账号唯一约束', () => {
       expectConstraint(() =>
         db
           .prepare(`INSERT INTO users (nickname, account, password_hash) VALUES (?, ?, ?)`)
@@ -70,7 +71,7 @@ function main() {
 
     // --- tasks：公共任务写入 + CHECK 约束 ---
     let taskId;
-    check('tasks 写入/读回（owner_id=NULL 公共任务）', () => {
+    await check('tasks 写入/读回（owner_id=NULL 公共任务）', () => {
       const info = db
         .prepare(
           `INSERT INTO tasks (owner_id, type, title, description, deadline, status)
@@ -82,7 +83,7 @@ function main() {
       if (!row || row.title !== '探针任务' || row.owner_id !== null)
         throw new Error('读回内容不一致');
     });
-    check('tasks status CHECK 约束', () => {
+    await check('tasks status CHECK 约束', () => {
       expectConstraint(() =>
         db
           .prepare(`INSERT INTO tasks (title, status) VALUES ('坏状态', 'paused')`)
@@ -91,7 +92,7 @@ function main() {
     });
 
     // --- checkins：个人打卡 ---
-    check('checkins 写入/读回', () => {
+    await check('checkins 写入/读回', () => {
       userAId = db.prepare(`SELECT id FROM users WHERE account = ?`).get('__dbcheck_a__').id;
       const info = db
         .prepare(
@@ -107,7 +108,7 @@ function main() {
 
     // --- teams：组队 + 同一用户仅一支 active 队伍 ---
     let teamId;
-    check('teams 写入/读回', () => {
+    await check('teams 写入/读回', () => {
       db.prepare(
         `INSERT INTO users (nickname, account, password_hash) VALUES (?, ?, ?)`
       ).run('测试用户B', '__dbcheck_b__', 'hash_b');
@@ -118,7 +119,7 @@ function main() {
       const row = db.prepare(`SELECT * FROM teams WHERE id = ?`).get(teamId);
       if (row.status !== 'active' || !row.bound_at) throw new Error('默认字段异常');
     });
-    check('teams 唯一组队约束（user_a 同时仅一支 active 队伍）', () => {
+    await check('teams 唯一组队约束（user_a 同时仅一支 active 队伍）', () => {
       expectConstraint(() =>
         db.prepare(`INSERT INTO teams (user_a, user_b) VALUES (?, ?)`).run(userAId, userBId)
       );
@@ -126,7 +127,7 @@ function main() {
 
     // --- duo_tasks：共同任务 ---
     let duoTaskId;
-    check('duo_tasks 写入/读回', () => {
+    await check('duo_tasks 写入/读回', () => {
       duoTaskId = db
         .prepare(
           `INSERT INTO duo_tasks (team_id, title, division_a, division_b, deadline)
@@ -139,7 +140,7 @@ function main() {
     });
 
     // --- duo_checkins：双人打卡 + 每日一次唯一索引 ---
-    check('duo_checkins 写入/读回', () => {
+    await check('duo_checkins 写入/读回', () => {
       db.prepare(
         `INSERT INTO duo_checkins (duo_task_id, user_id, image_paths, note) VALUES (?, ?, '[]', '探针A打卡')`
       ).run(duoTaskId, userAId);
@@ -148,7 +149,7 @@ function main() {
         .get(duoTaskId, userAId);
       if (!row || !row.day) throw new Error('day 字段未自动生成');
     });
-    check('duo_checkins 每日一次约束（同任务同人同日唯一）', () => {
+    await check('duo_checkins 每日一次约束（同任务同人同日唯一）', () => {
       expectConstraint(() =>
         db
           .prepare(`INSERT INTO duo_checkins (duo_task_id, user_id, day) VALUES (?, ?, date('now','localtime'))`)
@@ -157,7 +158,7 @@ function main() {
     });
 
     // --- notifications：站内通知 ---
-    check('notifications 写入/读回', () => {
+    await check('notifications 写入/读回', () => {
       const info = db
         .prepare(
           `INSERT INTO notifications (user_id, type, payload) VALUES (?, 'duo_reminder', ?)`
@@ -169,7 +170,7 @@ function main() {
     });
 
     // --- 外键级联 ---
-    check('外键级联删除（删队伍连带删共同任务）', () => {
+    await check('外键级联删除（删队伍连带删共同任务）', () => {
       db.prepare(`DELETE FROM teams WHERE id = ?`).run(teamId);
       const left = db.prepare(`SELECT COUNT(*) AS n FROM duo_tasks WHERE team_id = ?`).get(teamId).n;
       if (left !== 0) throw new Error('duo_tasks 未随 teams 级联删除');
@@ -178,7 +179,7 @@ function main() {
     // --- Day 5：单人任务服务（service 层与探针共用同一连接，写入随事务回滚） ---
     const taskService = require('./src/services/task.service');
     let day5TaskId;
-    check('task.service 创建单人任务（datetime-local 格式归一化）', () => {
+    await check('task.service 创建单人任务（datetime-local 格式归一化）', () => {
       const task = taskService.createSoloTask(userAId, {
         title: '探针：每日背 50 个单词',
         description: '',
@@ -193,12 +194,12 @@ function main() {
       )
         throw new Error('创建结果不一致: ' + JSON.stringify(task));
     });
-    check('tasks category CHECK 约束（非法分类拒绝）', () => {
+    await check('tasks category CHECK 约束（非法分类拒绝）', () => {
       expectConstraint(() =>
         db.prepare(`INSERT INTO tasks (title, category) VALUES ('坏分类', 'monthly')`).run()
       );
     });
-    check('task.service 表单校验（空标题 / 非法分类 / 非法时间）', () => {
+    await check('task.service 表单校验（空标题 / 非法分类 / 非法时间）', () => {
       let caught;
       try {
         taskService.createSoloTask(userAId, { title: '   ', category: 'bad', deadline: '2026-13-99' });
@@ -209,7 +210,7 @@ function main() {
       const e = caught.errors || {};
       if (!e.title || !e.category || !e.deadline) throw new Error('错误字段缺失: ' + JSON.stringify(e));
     });
-    check('task.service 状态流转 + overdue 不可手动设置', () => {
+    await check('task.service 状态流转 + overdue 不可手动设置', () => {
       const t = taskService.updateSoloTaskStatus({ id: userAId, role: 'user' }, day5TaskId, 'in_progress');
       if (t.status !== 'in_progress') throw new Error('状态未更新');
       let caught;
@@ -220,7 +221,7 @@ function main() {
       }
       if (!caught || caught.status !== 400) throw new Error('overdue 应由系统自动判定，不允许手动设置');
     });
-    check('task.service 越权防护（他人任务不可删）', () => {
+    await check('task.service 越权防护（他人任务不可删）', () => {
       let caught;
       try {
         taskService.deleteSoloTask({ id: userBId, role: 'user' }, day5TaskId);
@@ -229,7 +230,7 @@ function main() {
       }
       if (!caught || caught.status !== 403) throw new Error('未按预期抛出 403');
     });
-    check('task.service 过期任务自动标记 overdue', () => {
+    await check('task.service 过期任务自动标记 overdue', () => {
       const past = taskService.createSoloTask(userAId, {
         title: '探针：昨天的任务',
         category: 'weekly',
@@ -238,7 +239,7 @@ function main() {
       const row = taskService.listSoloTasks(userAId).find((t) => t.id === past.id);
       if (!row || row.status !== 'overdue') throw new Error('过期任务未被标记 overdue');
     });
-    check('task.service 列表可见性（自己的 + 公共，他人不可见）', () => {
+    await check('task.service 列表可见性（自己的 + 公共，他人不可见）', () => {
       const mine = taskService.listSoloTasks(userAId);
       if (!mine.some((t) => t.id === day5TaskId)) throw new Error('自己的任务不可见');
       if (!mine.some((t) => t.owner_id === null)) throw new Error('公共任务不可见');
@@ -251,7 +252,7 @@ function main() {
     const userA = { id: userAId, role: 'user' };
     const userB = { id: userBId, role: 'user' };
     let day6TaskId, day6OverdueTaskId, publicTaskId;
-    check('checkin.service 提交打卡（照片 JSON 落库 + unstarted 自动转 in_progress）', () => {
+    await check('checkin.service 提交打卡（照片 JSON 落库 + unstarted 自动转 in_progress）', () => {
       const t = taskService.createSoloTask(userAId, {
         title: '探针：今天背单词',
         category: 'daily',
@@ -272,7 +273,7 @@ function main() {
       const after = db.prepare(`SELECT status FROM tasks WHERE id = ?`).get(t.id);
       if (after.status !== 'in_progress') throw new Error('未开始任务打卡后应转为 in_progress');
     });
-    check('checkin.service 表单校验（缺照片 / 备注超长）', () => {
+    await check('checkin.service 表单校验（缺照片 / 备注超长）', () => {
       let caught;
       try {
         checkinService.createSoloCheckin(userA, { taskId: day6TaskId, note: '', photos: [] });
@@ -288,7 +289,7 @@ function main() {
       }
       if (!caught2 || caught2.status !== 400 || !caught2.errors.note) throw new Error('备注超长未按预期抛 400');
     });
-    check('checkin.service 越权防护（他人任务按不存在处理）', () => {
+    await check('checkin.service 越权防护（他人任务按不存在处理）', () => {
       let caught;
       try {
         checkinService.createSoloCheckin(userB, {
@@ -301,7 +302,7 @@ function main() {
       }
       if (!caught || caught.status !== 404) throw new Error('他人任务打卡应返回 404');
     });
-    check('checkin.service 逾期判定（过截止任务打卡 is_overdue = 1）', () => {
+    await check('checkin.service 逾期判定（过截止任务打卡 is_overdue = 1）', () => {
       const t = taskService.createSoloTask(userAId, {
         title: '探针：过期补打卡',
         category: 'weekly',
@@ -315,7 +316,7 @@ function main() {
       });
       if (c.is_overdue !== 1) throw new Error('过截止打卡未被标记 is_overdue');
     });
-    check('checkin.service 公共任务全员可打卡', () => {
+    await check('checkin.service 公共任务全员可打卡', () => {
       publicTaskId = db
         .prepare(`INSERT INTO tasks (owner_id, type, title) VALUES (NULL, 'solo', '探针：公共打卡任务')`)
         .run().lastInsertRowid;
@@ -327,7 +328,7 @@ function main() {
       if (c.task_title !== '探针：公共打卡任务' || c.task_category !== 'daily')
         throw new Error('公共任务打卡关联字段缺失');
     });
-    check('checkin.service listMyCheckins（按时间倒序 + 关联任务标题 + limit 生效）', () => {
+    await check('checkin.service listMyCheckins（按时间倒序 + 关联任务标题 + limit 生效）', () => {
       const list = checkinService.listMyCheckins(userAId, {}).checkins;
       if (list.length < 2) throw new Error('打卡记录数量异常');
       if (list[0].submitted_at < list[list.length - 1].submitted_at) throw new Error('未按时间倒序');
@@ -337,7 +338,7 @@ function main() {
     });
 
     // --- Day 7：打卡历史筛选 + 统计 ---
-    check('checkin.service 历史筛选（category 生效 + total 一致）', () => {
+    await check('checkin.service 历史筛选（category 生效 + total 一致）', () => {
       const all = checkinService.listMyCheckins(userAId, {});
       const weeklyOnly = checkinService.listMyCheckins(userAId, { category: 'weekly' });
       const catIds = new Set(
@@ -347,7 +348,7 @@ function main() {
       if (weeklyOnly.total !== expect) throw new Error(`weekly 筛选总数不一致: ${weeklyOnly.total} != ${expect}`);
       if (!weeklyOnly.checkins.every((c) => catIds.has(c.task_id))) throw new Error('weekly 筛选混入其它分类');
     });
-    check('checkin.service myCheckinStats（累计 / 今日 / 近 7 天）', () => {
+    await check('checkin.service myCheckinStats（累计 / 今日 / 近 7 天）', () => {
       const stats = checkinService.myCheckinStats(userAId);
       const n = db
         .prepare(`SELECT COUNT(*) AS n FROM checkins WHERE user_id = ? AND task_type = 'solo'`)
@@ -364,7 +365,7 @@ function main() {
     const userAFull = { id: userAId, role: 'user', nickname: userARow.nickname, account: userARow.account };
     const userBFull = { id: userBId, role: 'user', nickname: userBRow.nickname, account: userBRow.account };
     let inviteId;
-    check('team.service 邀请校验（自己 / 不存在账号）', () => {
+    await check('team.service 邀请校验（自己 / 不存在账号）', () => {
       let self, missing;
       try {
         teamService.createInvite(userAFull, userARow.account);
@@ -379,7 +380,7 @@ function main() {
       if (!self || self.status !== 400) throw new Error('邀请自己应返回 400');
       if (!missing || missing.status !== 404) throw new Error('不存在账号应返回 404');
     });
-    check('team.service 发出邀请 + 单发出邀请约束', () => {
+    await check('team.service 发出邀请 + 单发出邀请约束', () => {
       const r = teamService.createInvite(userAFull, userBRow.account);
       if (r.to.id !== userBId) throw new Error('邀请目标不一致');
       const row = db
@@ -395,7 +396,7 @@ function main() {
       }
       if (!dup || dup.status !== 409) throw new Error('重复发出邀请应返回 409');
     });
-    check('team.service 接受邀请建队 + 组队全貌', () => {
+    await check('team.service 接受邀请建队 + 组队全貌', () => {
       const view = teamService.respondInvite(userBFull, inviteId, true);
       if (!view.team || view.team.partner.id !== userAId) throw new Error('B 视角搭档应为 A');
       const viewA = teamService.getTeamView(userAId);
@@ -405,7 +406,7 @@ function main() {
     // --- Day 9：双人共同任务服务 ---
     const duoTaskService = require('./src/services/duoTask.service');
     let duoTaskId2;
-    check('duoTask.service 创建 + 列表（分工归属装饰 + 今日进度）', () => {
+    await check('duoTask.service 创建 + 列表（分工归属装饰 + 今日进度）', () => {
       const t = duoTaskService.createDuoTask(userAFull, {
         title: '探针：一起刷题',
         division_a: 'A 刷选择题',
@@ -420,7 +421,7 @@ function main() {
         throw new Error('列表装饰字段缺失');
       if (mine.today.a !== null || mine.today.b !== null) throw new Error('初始今日进度应为空');
     });
-    check('duoTask.service 状态流转 + 逾期自动标记', () => {
+    await check('duoTask.service 状态流转 + 逾期自动标记', () => {
       const t = duoTaskService.updateDuoTaskStatus(userBFull, duoTaskId2, 'in_progress');
       if (t.status !== 'in_progress') throw new Error('任一成员应可流转状态');
       const past = duoTaskService.createDuoTask(userAFull, { title: '探针：过期的共同任务', deadline: '2000-01-01' });
@@ -430,7 +431,7 @@ function main() {
 
     // --- Day 10：双人打卡服务 ---
     const duoCheckinService = require('./src/services/duoCheckin.service');
-    check('duoCheckin.service 打卡（unstarted 转进行中 + 搭档通知）', () => {
+    await check('duoCheckin.service 打卡（unstarted 转进行中 + 搭档通知）', () => {
       const notifBefore = db
         .prepare(`SELECT COUNT(*) AS n FROM notifications WHERE user_id = ? AND type = 'partner_checkin'`)
         .get(userBId).n;
@@ -448,7 +449,7 @@ function main() {
       const status = db.prepare(`SELECT status FROM duo_tasks WHERE id = ?`).get(duoTaskId2).status;
       if (status !== 'in_progress') throw new Error('打卡后任务应处于进行中');
     });
-    check('duoCheckin.service 每日一次（同日重复 409）', () => {
+    await check('duoCheckin.service 每日一次（同日重复 409）', () => {
       let caught;
       try {
         duoCheckinService.createDuoCheckin(userAFull, {
@@ -460,7 +461,7 @@ function main() {
       }
       if (!caught || caught.status !== 409) throw new Error('同日重复打卡应返回 409');
     });
-    check('duoCheckin.service 双方进度 + 记录列表（双方可见）', () => {
+    await check('duoCheckin.service 双方进度 + 记录列表（双方可见）', () => {
       duoCheckinService.createDuoCheckin(userBFull, {
         duoTaskId: duoTaskId2,
         photos: ['uploads/dbcheck-duo-b.jpg'],
@@ -472,7 +473,7 @@ function main() {
       const mine = duoCheckinService.listDuoCheckins(userAFull, { taskId: duoTaskId2 });
       if (mine.total !== 2) throw new Error('打卡记录应对队伍双方可见');
     });
-    check('duoCheckin.service 完成的任务不可打卡', () => {
+    await check('duoCheckin.service 完成的任务不可打卡', () => {
       const fresh = duoTaskService.createDuoTask(userAFull, { title: '探针：已完成任务' });
       duoTaskService.updateDuoTaskStatus(userAFull, fresh.id, 'completed');
       let caught;
@@ -489,7 +490,7 @@ function main() {
     });
 
     // --- Day 8 收尾：解绑（搭档通知 + 队伍归档） ---
-    check('team.service 解绑（状态归档 + 搭档通知）', () => {
+    await check('team.service 解绑（状态归档 + 搭档通知）', () => {
       teamService.unbindTeam(userAFull);
       const team = db
         .prepare(`SELECT * FROM teams WHERE status = 'unbound' ORDER BY id DESC`)
@@ -502,12 +503,44 @@ function main() {
       const view = teamService.getTeamView(userAId);
       if (view.team !== null) throw new Error('解绑后组队全貌应无队伍');
     });
+
+    // --- 安全加固：改密 / 会话作废 / 上传魔数 ---
+    const { registerUser, authenticate, changePassword, getSessionUser } = require('./src/services/user.service');
+    const { hasImageMagic } = require('./src/middleware/upload');
+    await check('user.service changePassword：旧密码错误被拒', async () => {
+      const u = await registerUser({ nickname: '改密探针', account: '__dbcheck_pwd__', password: 'OldPass1' });
+      let caught;
+      try {
+        await changePassword(u, 'WrongOld1', 'NewPass1x');
+      } catch (err) {
+        caught = err;
+      }
+      if (!caught || caught.status !== 400 || !caught.errors.oldPassword) throw new Error('旧密码错误未按预期抛 400');
+    });
+    await check('user.service changePassword：改密生效 + 旧会话全部作废', async () => {
+      const u = await registerUser({ nickname: '改密探针2', account: '__dbcheck_pwd2__', password: 'OldPass1' });
+      if (await authenticate('__dbcheck_pwd2__', 'OldPass1') === null) throw new Error('前置条件失败：旧密码应可登录');
+      const { session_not_before } = await changePassword(u, 'OldPass1', 'NewPass1x');
+      if (!Number.isInteger(session_not_before) || session_not_before <= 0) throw new Error('session_not_before 未推进');
+      if (await authenticate('__dbcheck_pwd2__', 'OldPass1') !== null) throw new Error('旧密码改密后仍可登录');
+      if (await authenticate('__dbcheck_pwd2__', 'NewPass1x') === null) throw new Error('新密码无法登录');
+      // 早于 session_not_before 签发的会话（含被盗 Cookie）作废；之后签发的有效
+      if (getSessionUser({ userId: u.id, iat: session_not_before - 1000 }) !== null) throw new Error('旧会话未作废');
+      if (getSessionUser({ userId: u.id, iat: session_not_before + 1000 }) === null) throw new Error('新会话被误杀');
+      if (getSessionUser({ userId: u.id }) !== null) throw new Error('缺 iat 的旧格式会话应视为作废');
+    });
+    await check('upload 魔数校验（HTML 伪装 / 真实 PNG / 真实 JPEG）', () => {
+      if (hasImageMagic(Buffer.from('<html><script>x</script></html>'))) throw new Error('HTML 内容被误判为图片');
+      if (!hasImageMagic(Buffer.from('89504e470d0a1a0a0000000d49484452', 'hex'))) throw new Error('PNG 魔数未通过');
+      if (!hasImageMagic(Buffer.from('ffd8ffe000104a46494600', 'hex'))) throw new Error('JPEG 魔数未通过');
+      if (hasImageMagic(Buffer.from('ffd9'))) throw new Error('过短内容不应通过');
+    });
   } finally {
     db.exec('ROLLBACK'); // 所有探针数据不落盘
   }
 
   // --- 种子数据可见（在事务外验证真实落库数据） ---
-  check('种子数据可见（管理员 + 示例任务）', () => {
+  await check('种子数据可见（管理员 + 示例任务）', () => {
     const admin = db.prepare(`SELECT * FROM users WHERE account = ?`).get('admin');
     if (!admin || admin.role !== 'admin') throw new Error('管理员账号缺失');
     const taskCount = db.prepare(`SELECT COUNT(*) AS n FROM tasks`).get().n;
@@ -525,4 +558,4 @@ function main() {
   else console.log('\x1b[32m全部检查通过，数据库就绪 ✔\x1b[0m');
 }
 
-main();
+main().catch((err) => { console.error(err); process.exit(2); });

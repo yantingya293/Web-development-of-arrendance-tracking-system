@@ -9,6 +9,7 @@
  * 迁移记录：
  *   Day 5  tasks 表补 category 列（daily / weekly / question），
  *          老库按种子数据旧标题前缀（每日任务：/ 每周重点：/ 学习问题：）回填分类
+ *   安全加固 users 表补 session_not_before 列（ms 纪元；改密时推进，作废更早签发的会话）
  */
 const fs = require('fs');
 const path = require('path');
@@ -58,11 +59,22 @@ function migrateTasksCategory(conn) {
   return true;
 }
 
+/** 安全加固迁移：老库 users 表补 session_not_before 列（新库由 schema.sql 直接建出，此处跳过） */
+function migrateUsersSessionNotBefore(conn) {
+  const hasColumn = conn
+    .prepare("SELECT 1 FROM pragma_table_info('users') WHERE name = 'session_not_before'")
+    .get();
+  if (hasColumn) return false;
+  conn.exec('ALTER TABLE users ADD COLUMN session_not_before INTEGER');
+  return true;
+}
+
 function initDb() {
   const conn = getDb();
   const schema = fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf-8');
   conn.exec(schema);
   migrateTasksCategory(conn);
+  migrateUsersSessionNotBefore(conn);
   return conn;
 }
 

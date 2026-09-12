@@ -12,11 +12,25 @@
 const express = require('express');
 
 const { requireAuth } = require('../middleware/auth');
-const { uploadPhotos, cleanupUploadedPhotos, multerErrorResponse } = require('../middleware/upload');
+const {
+  uploadPhotos,
+  findNonImageFiles,
+  cleanupUploadedPhotos,
+  multerErrorResponse,
+} = require('../middleware/upload');
+const { createRateLimiter } = require('../middleware/rateLimit');
 const checkinService = require('../services/checkin.service');
 
 const router = express.Router();
 router.use(requireAuth);
+
+/** 单人打卡每日上限（按用户）：同日多次打卡的产品语义保留，仅封顶防滥用（磁盘填充） */
+const checkinDailyLimiter = createRateLimiter({
+  windowMs: 24 * 60 * 60 * 1000,
+  max: 30,
+  keyFn: (req) => 'checkin:' + req.user.id,
+  message: '今天提交的打卡太多了，明天再来吧',
+});
 
 /** Multer / 业务错误 → 友好 JSON；其余 500 兜底 */
 function sendError(prefix, res, err) {
@@ -47,14 +61,23 @@ router.get('/stats', (req, res) => {
   }
 });
 
-router.post('/', (req, res) => {
+router.post('/', checkinDailyLimiter, (req, res) => {
   if (!req.is('multipart/form-data')) {
     return res.status(400).json({ message: '请使用 multipart/form-data 提交打卡表单' });
   }
-  uploadPhotos.array('photos', checkinService.MAX_PHOTOS)(req, res, (multerErr) => {
+  uploadPhotos.array('photos', checkinService.MAX_PHOTOS)(req, res, async (multerErr) => {
     if (multerErr) return sendError('checkins/upload', res, multerErr);
 
     const files = req.files || [];
+    // 魔数校验：伪装 Content-Type 的非图片内容（如 HTML）直接拒绝并清理
+    const badFiles = await findNonImageFiles(files);
+    if (badFiles.length) {
+      cleanupUploadedPhotos(files);
+      return res.status(400).json({
+        message: '仅支持真实 JPG / PNG 图片',
+        errors: { photos: '文件内容不是有效的 JPG / PNG 图片' },
+      });
+    }
     try {
       const checkin = checkinService.createSoloCheckin(req.user, {
         taskId: req.body.taskId,

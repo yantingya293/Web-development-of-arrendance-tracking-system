@@ -3,7 +3,8 @@
  *
  * 模块说明：
  *   seedIfEmpty()  仅当 users 表为空时写入种子数据，幂等可重复调用：
- *                    1. 管理员账号 admin / admin123（首次上线后请登录修改密码）
+ *                    1. 管理员账号 admin（密码可用环境变量 ADMIN_PASSWORD 覆盖，默认 admin123；
+ *                       上线后请尽快在「个人中心 → 修改密码」改掉默认密码）
  *                    2. 几个示例单人任务（覆盖 daily / weekly / question 三类分类
  *                       与未开始 / 进行中 / 已逾期三种状态，Day 5 起带 category 字段）
  *   直接运行本文件可手动补种：node src/db/seed.js
@@ -11,11 +12,11 @@
 const bcrypt = require('bcryptjs');
 const { getDb } = require('./db');
 
-/** 默认管理员账号（部署后应尽快修改密码） */
+/** 默认管理员账号（密码可被 ADMIN_PASSWORD 环境变量覆盖） */
 const ADMIN = {
   nickname: '管理员',
   account: 'admin',
-  password: 'admin123',
+  password: process.env.ADMIN_PASSWORD || 'admin123',
   role: 'admin',
 };
 
@@ -84,6 +85,11 @@ function seedIfEmpty() {
   });
   seed();
 
+  if (!process.env.ADMIN_PASSWORD) {
+    console.warn(
+      '[warn] 管理员账号使用了默认密码 admin123，请上线后立即登录，在「个人中心 → 修改密码」改掉。'
+    );
+  }
   return true;
 }
 

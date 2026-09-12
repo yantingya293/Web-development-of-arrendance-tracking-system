@@ -49,4 +49,49 @@
     .catch(function () {
       heatmapHint.textContent = '统计数据加载失败，请刷新重试。';
     });
+
+  /* 修改密码（安全加固）：POST /api/auth/change-password */
+  var pwdForm = document.getElementById('pwdForm');
+  if (pwdForm) {
+    pwdForm.addEventListener('submit', function (e) {
+      e.preventDefault();
+      Array.prototype.forEach.call(pwdForm.querySelectorAll('.field-error'), function (p) {
+        p.textContent = '';
+      });
+      var btn = pwdForm.querySelector('button[type="submit"]');
+      btn.disabled = true;
+      fetch('/api/auth/change-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          oldPassword: document.getElementById('pwdOld').value,
+          newPassword: document.getElementById('pwdNew').value,
+        }),
+      })
+        .then(function (res) {
+          return res.json().then(function (b) {
+            return { ok: res.ok, body: b };
+          });
+        })
+        .then(function (r) {
+          if (!r.ok) {
+            var errors = r.body.errors || {};
+            Object.keys(errors).forEach(function (k) {
+              var tip = pwdForm.querySelector('[data-error-for="' + k + '"]');
+              if (tip) tip.textContent = errors[k];
+            });
+            window.showToast(r.body.message || '修改失败，请稍后再试', 'error');
+            return;
+          }
+          pwdForm.reset();
+          window.showToast(r.body.message || '密码已修改', 'success');
+        })
+        .catch(function () {
+          window.showToast('网络异常，请稍后再试', 'error');
+        })
+        .then(function () {
+          btn.disabled = false;
+        });
+    });
+  }
 })();

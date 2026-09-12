@@ -1,5 +1,5 @@
 /**
- * 鉴权中间件（Day 3）
+ * 鉴权中间件（Day 3；会话作废校验统一走 user.service.getSessionUser）
  *
  * 模块说明：
  *   requireAuth      API 守卫：未登录返回 401 JSON
@@ -7,7 +7,7 @@
  *   requireAuthPage  页面守卫：未登录重定向 /login（带 next 回跳参数）
  *   requireAdminPage 页面守卫：未登录跳登录；已登录非管理员渲染 403
  */
-const { findPublicById } = require('../services/user.service');
+const { getSessionUser } = require('../services/user.service');
 
 function loginRedirect(req, res) {
   const next = encodeURIComponent(req.originalUrl || '/');
@@ -15,7 +15,7 @@ function loginRedirect(req, res) {
 }
 
 function requireAuth(req, res, next) {
-  const user = req.session && req.session.userId ? findPublicById(req.session.userId) : null;
+  const user = getSessionUser(req.session);
   if (!user) return res.status(401).json({ message: '未登录或会话已过期' });
   req.user = user;
   next();
@@ -32,14 +32,14 @@ function requireAdmin(req, res, next) {
 }
 
 function requireAuthPage(req, res, next) {
-  const user = req.session && req.session.userId ? findPublicById(req.session.userId) : null;
+  const user = getSessionUser(req.session);
   if (!user) return loginRedirect(req, res);
   req.user = user;
   next();
 }
 
 function requireAdminPage(req, res, next) {
-  const user = req.session && req.session.userId ? findPublicById(req.session.userId) : null;
+  const user = getSessionUser(req.session);
   if (!user) return loginRedirect(req, res);
   if (user.role !== 'admin') {
     return res.status(403).render('error', {

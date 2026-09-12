@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS users (
   role          TEXT    NOT NULL DEFAULT 'user'
                 CHECK (role IN ('user', 'admin')),
   avatar_path   TEXT,                                -- 头像图片路径（可为空，Day 14 启用）
+  session_not_before INTEGER,                        -- 早于此时间（ms 纪元）签发的会话作废；改密时推进
   created_at    TEXT    NOT NULL DEFAULT (datetime('now', 'localtime'))
 );
 
