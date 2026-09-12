@@ -35,6 +35,37 @@
       <p><a href="/history" class="btn btn-outline btn-sm">查看完整打卡历史</a></p>
     </div>
 
+    <!-- Day 13：学习数据统计（任务完成率 / 分类分布 / 月度打卡日历） -->
+    <div class="me-grid">
+      <div class="card me-panel">
+        <h3 class="profile-subtitle">任务完成率</h3>
+        <div id="taskRatePanel">
+          <div class="loading" role="status"><span class="spinner" aria-hidden="true"></span><p class="loading-text">加载中…</p></div>
+        </div>
+      </div>
+      <div class="card me-panel">
+        <h3 class="profile-subtitle">任务分类分布</h3>
+        <div id="taskCatPanel">
+          <div class="loading" role="status"><span class="spinner" aria-hidden="true"></span><p class="loading-text">加载中…</p></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card me-panel">
+      <div class="cal-head">
+        <h3 class="profile-subtitle">打卡日历</h3>
+        <div class="cal-nav">
+          <button type="button" class="btn btn-outline btn-sm" id="calPrevBtn" aria-label="上一个月">‹ 上月</button>
+          <span class="cal-month" id="calMonth">–</span>
+          <button type="button" class="btn btn-outline btn-sm" id="calNextBtn" aria-label="下一个月">下月 ›</button>
+        </div>
+      </div>
+      <div id="calPanel">
+        <div class="loading" role="status"><span class="spinner" aria-hidden="true"></span><p class="loading-text">加载中…</p></div>
+      </div>
+      <p class="muted cal-summary" id="calSummary"></p>
+    </div>
+
     <!-- 安全加固：修改密码（成功后其他已登录设备全部退出） -->
     <div class="profile-password">
       <h3 class="profile-subtitle">修改密码</h3>
@@ -58,7 +89,7 @@
     <div class="profile-placeholder">
       <p class="muted">个人中心继续建设中：</p>
       <ul class="muted">
-        <li>数据统计图表 · 组队信息 · 个人设置 —— Day 13 / 14</li>
+        <li>组队信息 · 个人设置（头像 / 昵称修改）—— Day 14</li>
       </ul>
     </div>
   </section>

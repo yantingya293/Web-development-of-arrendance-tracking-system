@@ -10,6 +10,7 @@
  * Day 10：双人打卡服务层（打卡联动通知 / 每日一次 / 双方进度 / 完成拦截，4 项）
  * Day 11：双人协作统计（任务分布 / 双方累计 / 连续天数 / 解绑后 409，2 项）
  * Day 12：全员打卡广场（合并流 / 倒序 / scope 筛选 / 统计，2 项）
+ * Day 13：个人数据看板（任务分布与完成率 / 月度日历合并聚合，2 项）
  * 安全加固：改密与会话作废 / 上传魔数校验（3 项，检查器支持 async）
  *
  * 运行：node dbCheck.js
@@ -537,6 +538,38 @@ async function main() {
       // 探针当天写入：单人 A 2 条 + B 2 条（含广场探针）+ 双人 A/B 各 1 → 今日 ≥ 6、参与 ≥ 2 人
       if (s.today < 6) throw new Error('今日打卡计数偏低: ' + s.today);
       if (s.today_users < 2) throw new Error('今日参与人数应 ≥ 2');
+    });
+
+    // --- Day 13：个人数据看板（探针用户 A：单人任务 4 个 = daily 2 + weekly 2，进行中 3 / 逾期 1 / 完成 0） ---
+    const statsService = require('./src/services/stats.service');
+    await check('stats.service myDashboard（任务分布 / 分类 / 完成率）', () => {
+      const t = statsService.myDashboard(userAId, {}).tasks;
+      if (t.total !== 4) throw new Error('任务总数应为 4（仅自己的单人任务），实际 ' + t.total);
+      if (t.by_category.daily !== 2 || t.by_category.weekly !== 2 || t.by_category.question !== 0)
+        throw new Error('分类分布不一致: ' + JSON.stringify(t.by_category));
+      if (t.completed !== 0 || t.in_progress !== 3 || t.overdue !== 1)
+        throw new Error('状态分布不一致: ' + JSON.stringify(t));
+      if (t.completion_rate !== 0) throw new Error('完成率应为 0，实际 ' + t.completion_rate);
+      taskService.updateSoloTaskStatus({ id: userAId, role: 'user' }, day5TaskId, 'completed');
+      const t2 = statsService.myDashboard(userAId, {}).tasks;
+      if (t2.completed !== 1 || t2.completion_rate !== 25)
+        throw new Error('完成 1/4 后完成率应为 25: ' + JSON.stringify(t2));
+    });
+    await check('stats.service myDashboard（月度日历 单人+双人合并 / 月份回退）', () => {
+      const d = statsService.myDashboard(userAId, {});
+      const today = db.prepare("SELECT date('now', 'localtime') AS d").get().d;
+      // userA 打卡：Day2 基础探针 1 + Day6 2 = 单人 3，双人 1 → 今日 4
+      if (d.calendar.days[today] !== 4)
+        throw new Error('今日应为单人 3 + 双人 1 = 4 次，实际 ' + d.calendar.days[today]);
+      if (d.calendar.month_total !== 4 || d.calendar.active_days !== 1)
+        throw new Error('月度聚合不一致: ' + JSON.stringify(d.calendar));
+      if (d.checkins.solo_total !== 3 || d.checkins.duo_total !== 1)
+        throw new Error('打卡累计不一致: ' + JSON.stringify(d.checkins));
+      const empty = statsService.myDashboard(userAId, { month: '2000-01' });
+      if (empty.month !== '2000-01' || empty.calendar.month_total !== 0)
+        throw new Error('历史月查询异常: ' + JSON.stringify(empty.calendar));
+      const bad = statsService.myDashboard(userAId, { month: '2026-13' }); // 非法月份回退当前月
+      if (!/^\d{4}-\d{2}$/.test(bad.month)) throw new Error('非法月份未回退: ' + bad.month);
     });
 
     // --- Day 8 收尾：解绑（搭档通知 + 队伍归档） ---
