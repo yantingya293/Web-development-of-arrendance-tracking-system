@@ -2,7 +2,9 @@
  * 单人打卡路由（Day 6）
  *
  * 模块说明（全部需登录）：
- *   GET  /api/checkins          我的单人打卡记录（limit ≤ 50 / offset 分页，关联任务标题）
+ *   GET  /api/checkins          我的单人打卡记录（limit ≤ 50 / offset 分页，关联任务标题；
+ *                               Day 7 增加 category / date 筛选，并返回符合条件的 total）
+ *   GET  /api/checkins/stats    打卡统计（累计 / 今日 / 连续天数 / 近 7 天，Day 7）
  *   POST /api/checkins          提交打卡（multipart/form-data：taskId + note + photos[]）
  *
  * 上传约定（与 Day 4 上传区提示一致）：
@@ -76,9 +78,17 @@ function cleanupFiles(files) {
 
 router.get('/', (req, res) => {
   try {
-    res.json({ checkins: checkinService.listMyCheckins(req.user.id, req.query) });
+    res.json(checkinService.listMyCheckins(req.user.id, req.query));
   } catch (err) {
     sendError('checkins/list', res, err);
+  }
+});
+
+router.get('/stats', (req, res) => {
+  try {
+    res.json({ stats: checkinService.myCheckinStats(req.user.id) });
+  } catch (err) {
+    sendError('checkins/stats', res, err);
   }
 });
 

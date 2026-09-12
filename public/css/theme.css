@@ -1249,3 +1249,257 @@ button.upload-zone:disabled {
   background: var(--primary);
   color: #fff;
 }
+
+/* ===== Day 7：历史记录页 · 统计卡 · 首页动态列表 · 个人中心热度 ===== */
+
+/* ---- 统计卡横排（历史页 / 个人中心共用） ---- */
+.stats-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-4);
+}
+
+.stat-card {
+  padding: var(--sp-4);
+  text-align: center;
+}
+
+.stat-value {
+  margin: 0;
+  font-size: var(--fs-2xl);
+  font-weight: 700;
+  color: var(--primary-dark);
+  line-height: 1.2;
+}
+
+.stat-label {
+  margin: var(--sp-1) 0 0;
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+}
+
+/* ---- 历史页筛选条 ---- */
+.history-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-3);
+  align-items: flex-end;
+  padding-bottom: var(--sp-4);
+  border-bottom: 1px solid var(--border);
+  margin-bottom: var(--sp-4);
+}
+
+.history-filter .form-group {
+  flex: 1 1 160px;
+  margin: 0;
+}
+
+.history-filter-actions {
+  flex: 0 0 auto !important;
+  display: flex;
+  gap: var(--sp-2);
+}
+
+/* ---- 历史列表：日期分组 + 打卡条目 ---- */
+.history-group {
+  margin-bottom: var(--sp-5);
+}
+
+.history-group-day {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  margin: 0 0 var(--sp-2);
+  padding: var(--sp-2) 0;
+  font-size: var(--fs-md);
+  color: var(--primary-dark);
+  background: var(--surface);
+  border-bottom: 1px dashed var(--border);
+}
+
+.history-item {
+  display: flex;
+  gap: var(--sp-3);
+  padding: var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  margin-bottom: var(--sp-2);
+  background: var(--bg);
+}
+
+.history-item-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.history-item-time {
+  margin: 0 0 var(--sp-1);
+  font-size: var(--fs-xs);
+}
+
+.history-item-title {
+  margin: 0 0 var(--sp-2);
+  font-size: var(--fs-lg);
+}
+
+.history-item-tags {
+  display: flex;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-2);
+}
+
+.history-item-note {
+  margin: 0;
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+  word-break: break-word;
+}
+
+.history-item-photos {
+  display: flex;
+  gap: var(--sp-2);
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.history-photo img {
+  width: 72px;
+  height: 72px;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  display: block;
+}
+
+.history-more {
+  margin-top: var(--sp-3);
+}
+
+/* ---- 首页「实时打卡动态」列表 ---- */
+.feed-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.feed-item {
+  display: flex;
+  gap: var(--sp-3);
+  align-items: center;
+  padding: var(--sp-3) 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.feed-item:last-child {
+  border-bottom: none;
+}
+
+.feed-item-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.feed-item-text {
+  margin: 0;
+  font-size: var(--fs-md);
+  word-break: break-word;
+}
+
+.feed-item-time {
+  margin: var(--sp-1) 0 0;
+  font-size: var(--fs-xs);
+}
+
+.feed-thumb img {
+  width: 48px;
+  height: 48px;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  display: block;
+}
+
+/* ---- 个人中心：数据速览 + 近 7 天热度条 ---- */
+.profile-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--sp-3);
+  margin: var(--sp-5) 0;
+}
+
+.profile-heatmap {
+  padding: var(--sp-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+}
+
+.profile-subtitle {
+  margin: 0 0 var(--sp-3);
+  font-size: var(--fs-lg);
+}
+
+.heatmap-row {
+  display: flex;
+  gap: var(--sp-3);
+  justify-content: space-between;
+  margin-bottom: var(--sp-3);
+}
+
+.heatmap-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-2);
+  cursor: default;
+}
+
+.heatmap-box {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  transition: transform var(--transition);
+}
+
+.heatmap-cell:hover .heatmap-box {
+  transform: scale(1.08);
+}
+
+.heatmap-box.lv1 { background: #bfdbfe; border-color: #93c5fd; }
+.heatmap-box.lv2 { background: #60a5fa; border-color: #3b82f6; }
+.heatmap-box.lv3 { background: var(--primary-dark); border-color: var(--primary-dark); }
+
+.heatmap-label {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  text-align: center;
+  line-height: 1.3;
+}
+
+.heatmap-hint {
+  margin: 0 0 var(--sp-3);
+  font-size: var(--fs-sm);
+}
+
+/* ---- Day 7 响应式 ---- */
+@media (max-width: 480px) {
+  .stats-row,
+  .profile-stats {
+    gap: var(--sp-2);
+  }
+
+  .stat-value {
+    font-size: var(--fs-xl);
+  }
+
+  .history-item {
+    flex-direction: column;
+  }
+
+  .heatmap-box {
+    width: 28px;
+    height: 28px;
+  }
+}

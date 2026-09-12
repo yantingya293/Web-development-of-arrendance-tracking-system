@@ -131,7 +131,7 @@
         </div>
       </section>
 
-      <!-- 中下右：实时打卡动态 -->
+      <!-- 中下右：实时打卡动态（Day 7 接入 /api/checkins 数据源） -->
       <section class="card section-card">
         <div class="section-head">
           <div class="section-title">
@@ -144,12 +144,18 @@
           <div class="feed-loading" hidden>
             <%- include('partials/components/loading', { text: '正在加载最新动态…' }) %>
           </div>
-          <div class="feed-empty">
-            <%- include('partials/components/empty', {
-                  emptyTitle: '暂无打卡动态',
-                  emptyHint: '打卡动态数据源将在 Day 7 接入（双人打卡随 M2 上线）。'
-                }) %>
-          </div>
+          <% if (currentUser) { %>
+            <div class="feed-list" id="feedList"></div>
+          <% } else { %>
+            <div class="feed-empty">
+              <%- include('partials/components/empty', {
+                    emptyTitle: '登录后查看打卡动态',
+                    emptyHint: '这里会实时展示你最近的打卡记录；全员公开广场将在 Day 12 上线。',
+                    emptyActionText: '立即登录',
+                    emptyActionHref: '/login'
+                  }) %>
+            </div>
+          <% } %>
         </div>
       </section>
     </div>

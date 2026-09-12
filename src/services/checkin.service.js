@@ -4,6 +4,7 @@
  * 模块说明：
  *   createSoloCheckin(user, payload)   提交单人打卡（校验任务可见性 / 照片 / 备注，写 checkins）
  *   listMyCheckins(userId, query)      当前用户的打卡记录（关联任务标题，供表单标记与 Day 7 历史复用）
+ *   myCheckinStats(userId)             打卡统计（Day 7）：累计 / 今日 / 连续天数 / 近 7 天每日次数
  *
  * 策略约定（Day 6 拍板）：
  *   * 打卡 = 任务 + 照片凭证 + 备注：至少 1 张、最多 3 张照片，备注 ≤ 500 字符
@@ -105,24 +106,94 @@ function createSoloCheckin(user, payload) {
 }
 
 /**
- * 我的打卡记录（单人）
+ * 我的打卡记录（单人，Day 7 增加筛选与总数）
  * @param {number} userId 当前用户
- * @param {object} query  { limit = 20（≤50）, offset = 0（≥0） }
+ * @param {object} query  { limit = 20（≤50）, offset = 0（≥0）,
+ *                          category = 任务分类（daily / weekly / question，可选）,
+ *                          date = 'YYYY-MM-DD'（可选，只看某天） }
+ * @returns {{ checkins: Array, total: number }}  total 为符合筛选条件的总条数（供「加载更多」判断）
  */
 function listMyCheckins(userId, query = {}) {
   const limit = Math.min(Math.max(Number(query.limit) || DEFAULT_LIMIT, 1), MAX_LIMIT);
   const offset = Math.max(Number(query.offset) || 0, 0);
 
-  const rows = getDb()
+  const where = ['c.user_id = ?', "c.task_type = 'solo'"];
+  const params = [userId];
+  if (['daily', 'weekly', 'question'].includes(query.category)) {
+    where.push('t.category = ?');
+    params.push(query.category);
+  }
+  if (/^\d{4}-\d{2}-\d{2}$/.test(String(query.date || '').trim())) {
+    where.push("substr(c.submitted_at, 1, 10) = ?");
+    params.push(String(query.date).trim());
+  }
+  const whereSql = where.join(' AND ');
+
+  const db = getDb();
+  const { total } = db
+    .prepare(`SELECT COUNT(*) AS total FROM checkins c JOIN tasks t ON t.id = c.task_id WHERE ${whereSql}`)
+    .get(...params);
+
+  const rows = db
     .prepare(
       `SELECT c.*, t.title AS task_title, t.category AS task_category, t.deadline AS task_deadline
        FROM checkins c JOIN tasks t ON t.id = c.task_id
-       WHERE c.user_id = ? AND c.task_type = 'solo'
+       WHERE ${whereSql}
        ORDER BY c.submitted_at DESC, c.id DESC
        LIMIT ? OFFSET ?`
     )
-    .all(userId, limit, offset);
-  return rows.map(withParsedImages);
+    .all(...params, limit, offset);
+  return { checkins: rows.map(withParsedImages), total };
 }
 
-module.exports = { createSoloCheckin, listMyCheckins, MAX_PHOTOS, MAX_NOTE_LEN };
+/**
+ * 打卡统计（Day 7，仅单人打卡）
+ *   total   累计打卡次数
+ *   today   今日打卡次数
+ *   streak  连续打卡天数（按自然日聚合；今天还没打卡时从昨天往前数，保持激励语义）
+ *   last7   近 7 天逐日次数（旧 → 新，无记录的天补 0，供热度条渲染）
+ */
+function myCheckinStats(userId) {
+  const db = getDb();
+  const days = db
+    .prepare(
+      `SELECT substr(submitted_at, 1, 10) AS day, COUNT(*) AS n
+       FROM checkins
+       WHERE user_id = ? AND task_type = 'solo'
+       GROUP BY day
+       ORDER BY day DESC`
+    )
+    .all(userId);
+
+  const now = db.prepare("SELECT datetime('now', 'localtime') AS now").get().now;
+  const today = now.slice(0, 10);
+  const dayMs = 24 * 60 * 60 * 1000;
+  const shift = (day, n) => {
+    const d = new Date(day + 'T00:00:00');
+    d.setTime(d.getTime() - n * dayMs);
+    const p = (x) => String(x).padStart(2, '0');
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+  };
+
+  const countByDay = Object.fromEntries(days.map((d) => [d.day, d.n]));
+  const total = days.reduce((sum, d) => sum + d.n, 0);
+  const todayCount = countByDay[today] || 0;
+
+  // 连续天数：从今天（若已打卡）或昨天起往前数有记录的天
+  let streak = 0;
+  let cursor = todayCount > 0 ? today : shift(today, 1);
+  while (countByDay[cursor] > 0) {
+    streak++;
+    cursor = shift(cursor, 1);
+  }
+
+  const last7 = [];
+  for (let i = 6; i >= 0; i--) {
+    const day = shift(today, i);
+    last7.push({ day, count: countByDay[day] || 0 });
+  }
+
+  return { total, today: todayCount, streak, last7 };
+}
+
+module.exports = { createSoloCheckin, listMyCheckins, myCheckinStats, MAX_PHOTOS, MAX_NOTE_LEN };

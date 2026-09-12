@@ -1,0 +1,67 @@
+<%- include('partials/header', { title, active: 'history' }) %>
+
+  <section class="hero hero-compact">
+    <div>
+      <h1>历史记录</h1>
+      <p class="sub">回顾每一次打卡，看见坚持的力量</p>
+    </div>
+  </section>
+
+  <!-- 打卡统计（Day 7）：累计 / 今日 / 连续天数 -->
+  <section class="stats-row" id="statsRow" aria-label="打卡统计">
+    <div class="card stat-card">
+      <p class="stat-value" id="statTotal">–</p>
+      <p class="stat-label">累计打卡</p>
+    </div>
+    <div class="card stat-card">
+      <p class="stat-value" id="statToday">–</p>
+      <p class="stat-label">今日打卡</p>
+    </div>
+    <div class="card stat-card">
+      <p class="stat-value" id="statStreak">–</p>
+      <p class="stat-label">连续打卡（天）</p>
+    </div>
+  </section>
+
+  <!-- 筛选（Day 7）：任务分类 + 具体日期 -->
+  <section class="card section-card">
+    <div class="section-head">
+      <div class="section-title">
+        <h2>打卡历史</h2>
+        <span class="tag">按日期分组</span>
+      </div>
+    </div>
+    <div class="section-body">
+      <form class="history-filter" id="historyFilter">
+        <div class="form-group">
+          <label for="filterCategory">任务分类</label>
+          <select id="filterCategory" name="category">
+            <option value="">全部分类</option>
+            <option value="daily">每日任务</option>
+            <option value="weekly">每周重点</option>
+            <option value="question">学习问题</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="filterDate">打卡日期</label>
+          <input type="date" id="filterDate" name="date" />
+        </div>
+        <div class="form-group history-filter-actions">
+          <button type="submit" class="btn btn-primary btn-sm">筛选</button>
+          <button type="button" class="btn btn-outline btn-sm" id="filterReset">重置</button>
+        </div>
+      </form>
+
+      <div id="historyListBody">
+        <%- include('partials/components/loading', { text: '正在加载打卡历史…' }) %>
+      </div>
+
+      <div class="history-more">
+        <button type="button" class="btn btn-outline btn-block" id="historyMoreBtn" hidden>加载更多</button>
+      </div>
+    </div>
+  </section>
+
+  <script src="/js/history.js" defer></script>
+
+<%- include('partials/footer') %>
