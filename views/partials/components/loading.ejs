@@ -1,0 +1,5 @@
+<%# 通用 Loading 组件（Day 4）· include 时传 text 可自定义文案，默认「加载中…」 %>
+<div class="loading" role="status" aria-live="polite">
+  <span class="spinner" aria-hidden="true"></span>
+  <p class="loading-text"><%= typeof text === 'undefined' ? '加载中…' : text %></p>
+</div>

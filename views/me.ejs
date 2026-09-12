@@ -12,14 +12,57 @@
       </div>
     </div>
 
+    <!-- Day 7：打卡数据速览（累计 / 今日 / 连续天数 + 近 7 天热度条） -->
+    <div class="profile-stats">
+      <div class="stat-card card">
+        <p class="stat-value" id="statTotal">–</p>
+        <p class="stat-label">累计打卡</p>
+      </div>
+      <div class="stat-card card">
+        <p class="stat-value" id="statToday">–</p>
+        <p class="stat-label">今日打卡</p>
+      </div>
+      <div class="stat-card card">
+        <p class="stat-value" id="statStreak">–</p>
+        <p class="stat-label">连续打卡（天）</p>
+      </div>
+    </div>
+
+    <div class="profile-heatmap">
+      <h3 class="profile-subtitle">近 7 天打卡热度</h3>
+      <div class="heatmap-row" id="heatmapRow" aria-label="近 7 天每日打卡次数"></div>
+      <p class="muted heatmap-hint" id="heatmapHint">加载中…</p>
+      <p><a href="/history" class="btn btn-outline btn-sm">查看完整打卡历史</a></p>
+    </div>
+
+    <!-- 安全加固：修改密码（成功后其他已登录设备全部退出） -->
+    <div class="profile-password">
+      <h3 class="profile-subtitle">修改密码</h3>
+      <form id="pwdForm" novalidate>
+        <div class="form-group">
+          <label for="pwdOld">当前密码</label>
+          <input type="password" id="pwdOld" name="oldPassword" autocomplete="current-password" required />
+          <p class="field-error" data-error-for="oldPassword"></p>
+        </div>
+        <div class="form-group">
+          <label for="pwdNew">新密码</label>
+          <input type="password" id="pwdNew" name="newPassword" autocomplete="new-password"
+                 placeholder="6–32 位，须同时包含字母和数字" required />
+          <p class="field-error" data-error-for="newPassword"></p>
+        </div>
+        <button type="submit" class="btn btn-primary">确认修改</button>
+        <p class="muted form-hint">修改成功后，其他已登录设备（含可能被盗的会话）会全部退出。</p>
+      </form>
+    </div>
+
     <div class="profile-placeholder">
-      <p class="muted">个人中心建设中：</p>
+      <p class="muted">个人中心继续建设中：</p>
       <ul class="muted">
-        <li>打卡历史与筛选 —— Day 7</li>
-        <li>近 7 天打卡热度图 —— Day 7</li>
         <li>数据统计图表 · 组队信息 · 个人设置 —— Day 13 / 14</li>
       </ul>
     </div>
   </section>
+
+  <script src="/js/me.js" defer></script>
 
 <%- include('partials/footer') %>

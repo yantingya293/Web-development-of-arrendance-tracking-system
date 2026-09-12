@@ -1,18 +1,222 @@
 <%- include('partials/header', { title, active: 'home' }) %>
 
-    <section class="hero">
-      <h1>学习打卡网页</h1>
-      <p class="sub">单人任务打卡 · 双人协作监督 · 全员成果展示</p>
+    <section class="hero hero-compact">
+      <div>
+        <h1>学习打卡网页</h1>
+        <p class="sub">单人任务打卡 · 双人协作监督 · 全员成果展示</p>
+      </div>
       <% if (currentUser) { %>
-        <p class="muted">你好，<strong><%= currentUser.nickname %></strong>！今天也要坚持打卡哦（Day 3 / 21，用户系统已上线）。</p>
+        <p class="muted">你好，<strong><%= currentUser.nickname %></strong>，今天也要坚持打卡哦。</p>
       <% } else { %>
-        <p class="muted">脚手架已就绪，注册并登录后即可开始使用（Day 3 / 21）。</p>
         <div class="hero-actions">
           <a href="/register" class="btn btn-primary">立即注册</a>
           <a href="/login" class="btn btn-outline">登录</a>
         </div>
       <% } %>
     </section>
-    <!-- Day4 起填充首页四大板块：左上单人任务 / 右上双人任务 / 中下左打卡表单 / 中下右实时动态 -->
+
+    <div class="home-grid">
+      <!-- 左上：个人独立任务 & 学习问题（Day 5 接入真实数据） -->
+      <section class="card section-card">
+        <div class="section-head">
+          <div class="section-title">
+            <h2>个人独立任务 &amp; 学习问题</h2>
+            <span class="tag tag-solo">单人</span>
+          </div>
+          <% if (currentUser) { %>
+            <button type="button" id="newTaskBtn" class="btn btn-primary btn-sm">+ 新建任务</button>
+          <% } %>
+        </div>
+        <div class="section-body">
+          <% if (currentUser) { %>
+            <div class="task-tabs" id="taskTabs" role="group" aria-label="任务分类筛选">
+              <button type="button" class="tab active" data-filter="all">全部 <span class="tab-count">0</span></button>
+              <button type="button" class="tab" data-filter="daily">每日任务 <span class="tab-count">0</span></button>
+              <button type="button" class="tab" data-filter="weekly">每周重点 <span class="tab-count">0</span></button>
+              <button type="button" class="tab" data-filter="question">学习问题 <span class="tab-count">0</span></button>
+            </div>
+            <div class="task-list-body" id="taskListBody"
+                 data-viewer-id="<%= currentUser.id %>" data-viewer-role="<%= currentUser.role %>">
+              <%- include('partials/components/loading', { text: '正在加载任务…' }) %>
+            </div>
+          <% } else { %>
+            <%- include('partials/components/empty', {
+                  emptyTitle: '登录后管理你的学习任务',
+                  emptyHint: '每日任务 / 每周重点 / 学习问题分类管理，创建后即可拍照打卡。',
+                  emptyActionText: '立即登录',
+                  emptyActionHref: '/login'
+                }) %>
+          <% } %>
+        </div>
+      </section>
+
+      <!-- 右上：双人共同协作任务（Day 8 接入组队数据，Day 9 接入共同任务） -->
+      <section class="card section-card">
+        <div class="section-head">
+          <div class="section-title">
+            <h2>双人共同协作任务</h2>
+            <span class="tag tag-duo">双人</span>
+          </div>
+        </div>
+        <div class="section-body" id="duoHomeBody">
+          <% if (currentUser) { %>
+            <%- include('partials/components/loading', { text: '正在加载组队信息…' }) %>
+          <% } else { %>
+            <%- include('partials/components/empty', {
+                  emptyTitle: '登录后开始双人协作',
+                  emptyHint: '绑定学习搭档，共建共同任务、双方打卡互相监督。',
+                  emptyActionText: '立即登录',
+                  emptyActionHref: '/login'
+                }) %>
+          <% } %>
+        </div>
+      </section>
+
+      <!-- 中下左：打卡提交区（Day 6 接入照片上传与提交） -->
+      <section class="card section-card">
+        <div class="section-head">
+          <div class="section-title">
+            <h2>打卡提交</h2>
+            <span class="tag">照片凭证</span>
+          </div>
+        </div>
+        <div class="section-body">
+          <% if (currentUser) { %>
+            <form class="checkin-form" id="checkinForm" aria-describedby="checkinHint" novalidate>
+              <div class="form-group">
+                <label for="checkinTask">选择任务</label>
+                <select id="checkinTask" name="taskId">
+                  <option value="">正在加载任务…</option>
+                </select>
+                <p class="field-error" data-error-for="taskId"></p>
+              </div>
+              <div class="form-group">
+                <label>上传照片 <span class="muted">（1–3 张，打卡凭证）</span></label>
+                <button type="button" class="upload-zone" id="photoPickBtn" aria-haspopup="dialog">
+                  点击选择照片<br />
+                  <span class="upload-zone-sub">支持 JPG / PNG / JPEG，单张 ≤ 10MB，最多 3 张</span>
+                </button>
+                <input type="file" id="photoInput" accept="image/jpeg,image/png" multiple hidden />
+                <div class="photo-preview" id="photoPreview" hidden></div>
+                <p class="field-error" data-error-for="photos"></p>
+              </div>
+              <div class="form-group">
+                <label for="checkinNote">学习备注（可选）</label>
+                <textarea id="checkinNote" name="note" maxlength="500"
+                          placeholder="记录今天的学习心得 / 遇到的问题…"></textarea>
+                <p class="field-error" data-error-for="note"></p>
+              </div>
+              <div class="alert alert-error" id="checkinFormError" hidden></div>
+              <button type="submit" class="btn btn-primary btn-block" id="checkinSubmitBtn">提交打卡</button>
+              <p class="form-hint" id="checkinHint">打卡需至少 1 张照片；未开始的任务打卡后自动转为「进行中」。</p>
+            </form>
+          <% } else { %>
+            <form class="checkin-form" aria-describedby="checkinHint" onsubmit="return false;">
+              <div class="form-group">
+                <label for="checkinTaskGuest">选择任务</label>
+                <select id="checkinTaskGuest" disabled>
+                  <option>登录后可选择任务</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>上传照片</label>
+                <div class="upload-zone" aria-disabled="true">支持 JPG / PNG / JPEG，单张 ≤ 10MB</div>
+              </div>
+              <div class="form-group">
+                <label for="checkinNoteGuest">学习备注</label>
+                <textarea id="checkinNoteGuest" placeholder="记录今天的学习心得 / 遇到的问题…" disabled></textarea>
+              </div>
+              <button type="submit" class="btn btn-primary btn-block" disabled>提交打卡</button>
+              <p class="form-hint" id="checkinHint">
+                <a href="/login">登录</a> 后即可选择任务、上传学习照片完成打卡。
+              </p>
+            </form>
+          <% } %>
+        </div>
+      </section>
+
+      <!-- 中下右：实时打卡动态（Day 7 接入 /api/checkins 数据源） -->
+      <section class="card section-card">
+        <div class="section-head">
+          <div class="section-title">
+            <h2>实时打卡动态</h2>
+            <span class="tag">最新 10 条</span>
+          </div>
+          <button type="button" id="refreshFeedBtn" class="btn btn-outline btn-sm">刷新</button>
+        </div>
+        <div class="section-body" id="feedBody">
+          <div class="feed-loading" hidden>
+            <%- include('partials/components/loading', { text: '正在加载最新动态…' }) %>
+          </div>
+          <% if (currentUser) { %>
+            <div class="feed-list" id="feedList"></div>
+          <% } else { %>
+            <div class="feed-empty">
+              <%- include('partials/components/empty', {
+                    emptyTitle: '登录后查看打卡动态',
+                    emptyHint: '这里会实时展示你最近的打卡记录；全员公开广场将在 Day 12 上线。',
+                    emptyActionText: '立即登录',
+                    emptyActionHref: '/login'
+                  }) %>
+            </div>
+          <% } %>
+        </div>
+      </section>
+    </div>
+
+    <% if (currentUser) { %>
+      <!-- Day 5：单人任务 新建 / 编辑 弹窗 -->
+      <div class="modal-overlay" id="taskModal" hidden>
+        <div class="modal" role="dialog" aria-modal="true" aria-labelledby="taskModalTitle">
+          <div class="modal-head">
+            <h3 id="taskModalTitle">新建任务</h3>
+            <button type="button" class="modal-close" id="taskModalClose" aria-label="关闭">×</button>
+          </div>
+          <form id="taskForm" novalidate>
+            <input type="hidden" id="taskFormId" name="id" value="" />
+            <div class="form-group">
+              <label>任务分类</label>
+              <div class="radio-row" id="taskCategoryRow">
+                <label class="radio-pill">
+                  <input type="radio" name="category" value="daily" checked />每日任务
+                </label>
+                <label class="radio-pill">
+                  <input type="radio" name="category" value="weekly" />每周重点
+                </label>
+                <label class="radio-pill">
+                  <input type="radio" name="category" value="question" />学习问题
+                </label>
+              </div>
+              <p class="field-error" data-error-for="category"></p>
+            </div>
+            <div class="form-group">
+              <label for="taskTitle">任务标题</label>
+              <input id="taskTitle" name="title" type="text" maxlength="50"
+                     placeholder="一句话描述任务，如：完成高数第三章习题" />
+              <p class="field-error" data-error-for="title"></p>
+            </div>
+            <div class="form-group">
+              <label for="taskDesc">任务说明（可选）</label>
+              <textarea id="taskDesc" name="description" maxlength="500"
+                        placeholder="补充要求、教材页码、验收标准…"></textarea>
+              <p class="field-error" data-error-for="description"></p>
+            </div>
+            <div class="form-group">
+              <label for="taskDeadline">截止时间（可选）</label>
+              <input id="taskDeadline" name="deadline" type="datetime-local" />
+              <p class="field-error" data-error-for="deadline"></p>
+            </div>
+            <div class="alert alert-error" id="taskFormError" hidden></div>
+            <div class="modal-actions">
+              <button type="button" class="btn btn-outline" id="taskModalCancel">取消</button>
+              <button type="submit" class="btn btn-primary">保存任务</button>
+            </div>
+          </form>
+        </div>
+      </div>
+      <script src="/js/tasks.js" defer></script>
+      <script src="/js/checkin.js" defer></script>
+      <script src="/js/duo-home.js" defer></script>
+    <% } %>
 
 <%- include('partials/footer') %>

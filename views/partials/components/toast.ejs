@@ -1,0 +1,8 @@
+<%# 通用 Toast 组件（Day 4）· 容器 + 模板，#toastTemplate 由 /js/app.js 的 window.showToast() 克隆使用 %>
+<div class="toast-container" id="toastContainer" aria-live="polite" aria-atomic="true"></div>
+
+<template id="toastTemplate">
+  <div class="toast" role="status">
+    <span class="toast-message"></span>
+  </div>
+</template>

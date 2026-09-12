@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS users (
   role          TEXT    NOT NULL DEFAULT 'user'
                 CHECK (role IN ('user', 'admin')),
   avatar_path   TEXT,                                -- 头像图片路径（可为空，Day 14 启用）
+  session_not_before INTEGER,                        -- 早于此时间（ms 纪元）签发的会话作废；改密时推进
   created_at    TEXT    NOT NULL DEFAULT (datetime('now', 'localtime'))
 );
 
@@ -24,6 +25,8 @@ CREATE TABLE IF NOT EXISTS tasks (
   owner_id    INTEGER REFERENCES users(id) ON DELETE CASCADE,  -- NULL = 公共任务
   type        TEXT    NOT NULL DEFAULT 'solo'
               CHECK (type IN ('solo', 'duo')),
+  category    TEXT    NOT NULL DEFAULT 'daily'
+              CHECK (category IN ('daily', 'weekly', 'question')),  -- daily=每日任务 weekly=每周重点 question=学习问题（Day 5 引入）
   title       TEXT    NOT NULL,
   description TEXT    NOT NULL DEFAULT '',
   deadline    TEXT,                                  -- 'YYYY-MM-DD HH:MM:SS'，空 = 无截止
