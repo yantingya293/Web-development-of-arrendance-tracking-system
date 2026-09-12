@@ -1,0 +1,44 @@
+<%- include('partials/header', { title, active: 'duo' }) %>
+
+  <section class="hero hero-compact">
+    <div>
+      <h1>双人协作广场</h1>
+      <p class="sub">绑定学习搭档 · 共同任务 · 双方打卡互相监督</p>
+    </div>
+  </section>
+
+  <% if (currentUser) { %>
+    <!-- Day 8：组队绑定区（邀请 / 接受 / 拒绝 / 解绑） -->
+    <section class="card section-card">
+      <div class="section-head">
+        <div class="section-title">
+          <h2>我的搭档</h2>
+          <span class="tag tag-duo">双人</span>
+        </div>
+      </div>
+      <div class="section-body" id="duoTeamBody"
+           data-my-account="<%= currentUser.account %>" data-my-nickname="<%= currentUser.nickname %>">
+        <%- include('partials/components/loading', { text: '正在加载组队信息…' }) %>
+      </div>
+    </section>
+    <script src="/js/duo.js" defer></script>
+  <% } else { %>
+    <section class="card section-card">
+      <div class="section-head">
+        <div class="section-title">
+          <h2>我的搭档</h2>
+          <span class="tag tag-duo">双人</span>
+        </div>
+      </div>
+      <div class="section-body">
+        <%- include('partials/components/empty', {
+              emptyTitle: '登录后开始组队',
+              emptyHint: '绑定一位学习搭档，互相监督、共同完成学习任务。',
+              emptyActionText: '立即登录',
+              emptyActionHref: '/login'
+            }) %>
+      </div>
+    </section>
+  <% } %>
+
+<%- include('partials/footer') %>

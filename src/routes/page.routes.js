@@ -7,7 +7,7 @@
  *   GET /register  注册页（已登录则回首页）
  *   GET /me        个人中心（登录可见，Day 7 接入打卡统计，Day 13 / 14 继续完善）
  *   GET /admin     管理员后台占位页（仅 admin，Day 14 细化）
- *   GET /duo       双人协作广场占位页（Day 8 实现）
+ *   GET /duo       双人协作广场（Day 8：组队绑定；Day 9：共同任务；Day 10：双方打卡）
  *   GET /gallery   全员打卡广场占位页（Day 12 实现）
  *   GET /history   历史记录页（Day 7 实现，登录可见）
  */
@@ -44,13 +44,9 @@ router.get('/admin', requireAdminPage, (req, res) => {
 });
 
 // 顶栏导航页（Day 4 建立占位，按里程碑逐步替换为真实页面）
+// 双人协作广场（Day 8）：组队绑定区接入真实数据，共同任务在 Day 9 上线
 router.get('/duo', (req, res) => {
-  res.render('coming-soon', {
-    title: '双人协作广场',
-    active: 'duo',
-    heading: '双人协作广场',
-    message: '绑定搭档、发布共同任务与协作进度可视化将在 Day 8 / 9 上线。',
-  });
+  res.render('duo', { title: '双人协作广场', active: 'duo' });
 });
 
 router.get('/gallery', (req, res) => {

@@ -50,7 +50,7 @@
         </div>
       </section>
 
-      <!-- 右上：双人共同协作任务 -->
+      <!-- 右上：双人共同协作任务（Day 8 接入组队数据，Day 9 接入共同任务） -->
       <section class="card section-card">
         <div class="section-head">
           <div class="section-title">
@@ -58,13 +58,17 @@
             <span class="tag tag-duo">双人</span>
           </div>
         </div>
-        <div class="section-body">
-          <%- include('partials/components/empty', {
-                emptyTitle: '暂未绑定学习搭档',
-                emptyHint: '组队绑定与共同任务发布将在 Day 8 / 9 上线。',
-                emptyActionText: '了解双人协作',
-                emptyActionHref: '/duo'
-              }) %>
+        <div class="section-body" id="duoHomeBody">
+          <% if (currentUser) { %>
+            <%- include('partials/components/loading', { text: '正在加载组队信息…' }) %>
+          <% } else { %>
+            <%- include('partials/components/empty', {
+                  emptyTitle: '登录后开始双人协作',
+                  emptyHint: '绑定学习搭档，共建共同任务、双方打卡互相监督。',
+                  emptyActionText: '立即登录',
+                  emptyActionHref: '/login'
+                }) %>
+          <% } %>
         </div>
       </section>
 
@@ -212,6 +216,7 @@
       </div>
       <script src="/js/tasks.js" defer></script>
       <script src="/js/checkin.js" defer></script>
+      <script src="/js/duo-home.js" defer></script>
     <% } %>
 
 <%- include('partials/footer') %>

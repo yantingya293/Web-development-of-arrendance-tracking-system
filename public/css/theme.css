@@ -1503,3 +1503,155 @@ button.upload-zone:disabled {
     height: 28px;
   }
 }
+
+/* ===== Day 8：双人组队（邀请卡 / 搭档卡 / 首页双人板块） ===== */
+
+/* 通用危险幽灵按钮（解绑等；此前仅在任务卡片作用域内有 hover 态） */
+.btn-danger-ghost {
+  border-color: #fecaca;
+  color: var(--danger);
+}
+
+.btn-danger-ghost:hover {
+  border-color: var(--danger);
+  background: var(--danger-light);
+}
+
+/* /duo 页小组标题 */
+.duo-subtitle {
+  margin: 0 0 var(--sp-3);
+  font-size: var(--fs-lg);
+}
+
+/* 收到的邀请卡 */
+.invite-card {
+  display: flex;
+  gap: var(--sp-3);
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  padding: var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--warning-light);
+  margin-bottom: var(--sp-2);
+}
+
+.invite-info {
+  display: flex;
+  gap: var(--sp-3);
+  align-items: center;
+  min-width: 0;
+}
+
+.invite-text {
+  margin: 0;
+  font-size: var(--fs-md);
+}
+
+.invite-time {
+  margin: var(--sp-1) 0 0;
+  font-size: var(--fs-xs);
+}
+
+.invite-actions {
+  display: flex;
+  gap: var(--sp-2);
+}
+
+/* 搭档卡（已组队 / 等待对方处理共用） */
+.partner-card {
+  display: flex;
+  gap: var(--sp-3);
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  padding: var(--sp-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--primary-light);
+}
+
+.partner-info {
+  display: flex;
+  gap: var(--sp-3);
+  align-items: center;
+  min-width: 0;
+}
+
+.partner-card .avatar {
+  width: 48px;
+  height: 48px;
+  font-size: var(--fs-xl);
+}
+
+.partner-name {
+  margin: 0 0 var(--sp-1);
+  font-size: var(--fs-lg);
+}
+
+/* 邀请表单 */
+.invite-form {
+  display: flex;
+  gap: var(--sp-3);
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+
+.invite-form .form-group {
+  flex: 1 1 240px;
+  margin: 0;
+}
+
+/* 首页双人板块：待处理邀请提醒条 */
+.duo-home-notice {
+  display: flex;
+  gap: var(--sp-3);
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid #fde68a;
+  border-radius: var(--radius-sm);
+  background: var(--warning-light);
+  margin-bottom: var(--sp-3);
+  font-size: var(--fs-sm);
+}
+
+/* 首页双人板块：搭档速览卡 */
+.duo-home-partner {
+  display: flex;
+  gap: var(--sp-3);
+  align-items: center;
+}
+
+.duo-home-partner-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.duo-home-partner-name {
+  margin: 0 0 var(--sp-1);
+  font-size: var(--fs-md);
+}
+
+.duo-home-partner-name + .muted {
+  margin: 0;
+  font-size: var(--fs-xs);
+}
+
+/* ---- Day 8 响应式 ---- */
+@media (max-width: 480px) {
+  .invite-card,
+  .partner-card {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .invite-actions {
+    justify-content: flex-end;
+  }
+
+  .duo-home-partner {
+    flex-wrap: wrap;
+  }
+}
