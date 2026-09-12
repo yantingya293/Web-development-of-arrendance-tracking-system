@@ -4,6 +4,10 @@
  * Day 2：建库 / 约束 / 种子数据（13 项）
  * Day 5：单人任务服务层（创建归一化 / 校验 / 状态流转 / 越权 / 逾期标记 / 可见性，7 项）
  * Day 6：单人打卡服务层（写入联动 / 校验 / 越权 / 逾期判定 / 公共任务 / 列表，6 项）
+ * Day 7：打卡历史筛选 + 统计（2 项）
+ * Day 8：双人组队服务层（邀请校验 / 单发出约束 / 接受建队 / 解绑，4 项）
+ * Day 9：双人共同任务服务层（创建装饰 / 状态与逾期，2 项）
+ * Day 10：双人打卡服务层（打卡联动通知 / 每日一次 / 双方进度 / 完成拦截，4 项）
  *
  * 运行：node dbCheck.js
  * 说明：探针写入全部包在一个事务里并在结束时 ROLLBACK，不会污染数据文件。
@@ -324,12 +328,179 @@ function main() {
         throw new Error('公共任务打卡关联字段缺失');
     });
     check('checkin.service listMyCheckins（按时间倒序 + 关联任务标题 + limit 生效）', () => {
-      const list = checkinService.listMyCheckins(userAId, {});
+      const list = checkinService.listMyCheckins(userAId, {}).checkins;
       if (list.length < 2) throw new Error('打卡记录数量异常');
       if (list[0].submitted_at < list[list.length - 1].submitted_at) throw new Error('未按时间倒序');
       if (!list.every((c) => c.task_title && Array.isArray(c.image_paths))) throw new Error('关联字段缺失');
       const one = checkinService.listMyCheckins(userAId, { limit: 1 });
-      if (one.length !== 1) throw new Error('limit 未生效');
+      if (one.checkins.length !== 1 || one.total < 2) throw new Error('limit / total 未生效');
+    });
+
+    // --- Day 7：打卡历史筛选 + 统计 ---
+    check('checkin.service 历史筛选（category 生效 + total 一致）', () => {
+      const all = checkinService.listMyCheckins(userAId, {});
+      const weeklyOnly = checkinService.listMyCheckins(userAId, { category: 'weekly' });
+      const catIds = new Set(
+        db.prepare(`SELECT id FROM tasks WHERE category = 'weekly'`).all().map((r) => r.id)
+      );
+      const expect = all.checkins.filter((c) => catIds.has(c.task_id)).length;
+      if (weeklyOnly.total !== expect) throw new Error(`weekly 筛选总数不一致: ${weeklyOnly.total} != ${expect}`);
+      if (!weeklyOnly.checkins.every((c) => catIds.has(c.task_id))) throw new Error('weekly 筛选混入其它分类');
+    });
+    check('checkin.service myCheckinStats（累计 / 今日 / 近 7 天）', () => {
+      const stats = checkinService.myCheckinStats(userAId);
+      const n = db
+        .prepare(`SELECT COUNT(*) AS n FROM checkins WHERE user_id = ? AND task_type = 'solo'`)
+        .get(userAId).n;
+      if (stats.total !== n) throw new Error(`累计次数不一致: ${stats.total} != ${n}`);
+      if (stats.today < 1) throw new Error('今日打卡未计入');
+      if (stats.last7.length !== 7) throw new Error('近 7 天数组长度应为 7');
+    });
+
+    // --- Day 8：双人组队服务（探针用户账号见上方 users 段） ---
+    const teamService = require('./src/services/team.service');
+    const userARow = db.prepare(`SELECT nickname, account FROM users WHERE id = ?`).get(userAId);
+    const userBRow = db.prepare(`SELECT nickname, account FROM users WHERE id = ?`).get(userBId);
+    const userAFull = { id: userAId, role: 'user', nickname: userARow.nickname, account: userARow.account };
+    const userBFull = { id: userBId, role: 'user', nickname: userBRow.nickname, account: userBRow.account };
+    let inviteId;
+    check('team.service 邀请校验（自己 / 不存在账号）', () => {
+      let self, missing;
+      try {
+        teamService.createInvite(userAFull, userARow.account);
+      } catch (err) {
+        self = err;
+      }
+      try {
+        teamService.createInvite(userAFull, '__no_such_user__');
+      } catch (err) {
+        missing = err;
+      }
+      if (!self || self.status !== 400) throw new Error('邀请自己应返回 400');
+      if (!missing || missing.status !== 404) throw new Error('不存在账号应返回 404');
+    });
+    check('team.service 发出邀请 + 单发出邀请约束', () => {
+      const r = teamService.createInvite(userAFull, userBRow.account);
+      if (r.to.id !== userBId) throw new Error('邀请目标不一致');
+      const row = db
+        .prepare(`SELECT * FROM notifications WHERE user_id = ? AND type = 'invite' AND read_at IS NULL`)
+        .get(userBId);
+      if (!row) throw new Error('邀请未写入 notifications');
+      inviteId = row.id;
+      let dup;
+      try {
+        teamService.createInvite(userAFull, userBRow.account);
+      } catch (err) {
+        dup = err;
+      }
+      if (!dup || dup.status !== 409) throw new Error('重复发出邀请应返回 409');
+    });
+    check('team.service 接受邀请建队 + 组队全貌', () => {
+      const view = teamService.respondInvite(userBFull, inviteId, true);
+      if (!view.team || view.team.partner.id !== userAId) throw new Error('B 视角搭档应为 A');
+      const viewA = teamService.getTeamView(userAId);
+      if (!viewA.team || viewA.team.partner.id !== userBId) throw new Error('A 视角搭档应为 B');
+    });
+
+    // --- Day 9：双人共同任务服务 ---
+    const duoTaskService = require('./src/services/duoTask.service');
+    let duoTaskId2;
+    check('duoTask.service 创建 + 列表（分工归属装饰 + 今日进度）', () => {
+      const t = duoTaskService.createDuoTask(userAFull, {
+        title: '探针：一起刷题',
+        division_a: 'A 刷选择题',
+        division_b: 'B 刷大题',
+        deadline: '2099-06-01',
+      });
+      duoTaskId2 = t.id;
+      if (t.deadline !== '2099-06-01 23:59:59') throw new Error('截止时间归一化失败');
+      const { tasks } = duoTaskService.listDuoTasks(userBFull); // 任一成员可建可看
+      const mine = tasks.find((x) => x.id === duoTaskId2);
+      if (!mine || mine.members.a.nickname !== userARow.nickname || mine.members.b.division !== 'B 刷大题')
+        throw new Error('列表装饰字段缺失');
+      if (mine.today.a !== null || mine.today.b !== null) throw new Error('初始今日进度应为空');
+    });
+    check('duoTask.service 状态流转 + 逾期自动标记', () => {
+      const t = duoTaskService.updateDuoTaskStatus(userBFull, duoTaskId2, 'in_progress');
+      if (t.status !== 'in_progress') throw new Error('任一成员应可流转状态');
+      const past = duoTaskService.createDuoTask(userAFull, { title: '探针：过期的共同任务', deadline: '2000-01-01' });
+      const swept = duoTaskService.listDuoTasks(userAFull).tasks.find((x) => x.id === past.id);
+      if (!swept || swept.status !== 'overdue') throw new Error('过期共同任务未被标记 overdue');
+    });
+
+    // --- Day 10：双人打卡服务 ---
+    const duoCheckinService = require('./src/services/duoCheckin.service');
+    check('duoCheckin.service 打卡（unstarted 转进行中 + 搭档通知）', () => {
+      const notifBefore = db
+        .prepare(`SELECT COUNT(*) AS n FROM notifications WHERE user_id = ? AND type = 'partner_checkin'`)
+        .get(userBId).n;
+      const c = duoCheckinService.createDuoCheckin(userAFull, {
+        duoTaskId: duoTaskId2,
+        note: 'A 今天完成',
+        photos: ['uploads/dbcheck-duo-a.jpg'],
+      });
+      if (c.task_title !== '探针：一起刷题' || c.user_nickname !== userARow.nickname)
+        throw new Error('打卡关联字段缺失');
+      const notifAfter = db
+        .prepare(`SELECT COUNT(*) AS n FROM notifications WHERE user_id = ? AND type = 'partner_checkin'`)
+        .get(userBId).n;
+      if (notifAfter !== notifBefore + 1) throw new Error('搭档未收到打卡通知');
+      const status = db.prepare(`SELECT status FROM duo_tasks WHERE id = ?`).get(duoTaskId2).status;
+      if (status !== 'in_progress') throw new Error('打卡后任务应处于进行中');
+    });
+    check('duoCheckin.service 每日一次（同日重复 409）', () => {
+      let caught;
+      try {
+        duoCheckinService.createDuoCheckin(userAFull, {
+          duoTaskId: duoTaskId2,
+          photos: ['uploads/dbcheck-duo-a2.jpg'],
+        });
+      } catch (err) {
+        caught = err;
+      }
+      if (!caught || caught.status !== 409) throw new Error('同日重复打卡应返回 409');
+    });
+    check('duoCheckin.service 双方进度 + 记录列表（双方可见）', () => {
+      duoCheckinService.createDuoCheckin(userBFull, {
+        duoTaskId: duoTaskId2,
+        photos: ['uploads/dbcheck-duo-b.jpg'],
+      });
+      const t = duoTaskService.listDuoTasks(userAFull).tasks.find((x) => x.id === duoTaskId2);
+      if (!t.today.a || !t.today.b) throw new Error('双方今日进度未更新: ' + JSON.stringify(t.today));
+      const list = duoCheckinService.listDuoCheckins(userBFull, { taskId: duoTaskId2 });
+      if (list.total !== 2) throw new Error(`队伍打卡记录应为 2 条，实际 ${list.total}`);
+      const mine = duoCheckinService.listDuoCheckins(userAFull, { taskId: duoTaskId2 });
+      if (mine.total !== 2) throw new Error('打卡记录应对队伍双方可见');
+    });
+    check('duoCheckin.service 完成的任务不可打卡', () => {
+      const fresh = duoTaskService.createDuoTask(userAFull, { title: '探针：已完成任务' });
+      duoTaskService.updateDuoTaskStatus(userAFull, fresh.id, 'completed');
+      let caught;
+      try {
+        duoCheckinService.createDuoCheckin(userBFull, {
+          duoTaskId: fresh.id,
+          photos: ['uploads/dbcheck-duo-done.jpg'],
+        });
+      } catch (err) {
+        caught = err;
+      }
+      if (!caught || caught.status !== 400 || !/已完成/.test(caught.message))
+        throw new Error('已完成任务打卡未被拦截: ' + JSON.stringify(caught && caught.message));
+    });
+
+    // --- Day 8 收尾：解绑（搭档通知 + 队伍归档） ---
+    check('team.service 解绑（状态归档 + 搭档通知）', () => {
+      teamService.unbindTeam(userAFull);
+      const team = db
+        .prepare(`SELECT * FROM teams WHERE status = 'unbound' ORDER BY id DESC`)
+        .get();
+      if (!team || team.unbound_at === null) throw new Error('解绑时间未记录');
+      const notif = db
+        .prepare(`SELECT * FROM notifications WHERE user_id = ? AND type = 'team_unbound'`)
+        .get(userBId);
+      if (!notif) throw new Error('搭档未收到解绑通知');
+      const view = teamService.getTeamView(userAId);
+      if (view.team !== null) throw new Error('解绑后组队全貌应无队伍');
     });
   } finally {
     db.exec('ROLLBACK'); // 所有探针数据不落盘

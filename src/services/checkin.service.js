@@ -44,6 +44,20 @@ function withParsedImages(row) {
 }
 
 /**
+ * 照片相对路径校验（Day 10 抽出供双人打卡复用）
+ * @param {string[]} photos multer 落盘后的相对路径数组
+ * @returns {string|null} 错误提示；null = 通过
+ */
+function validatePhotoPaths(photos) {
+  if (photos.length < 1) return '请至少上传 1 张照片作为打卡凭证';
+  if (photos.length > MAX_PHOTOS) return `照片最多 ${MAX_PHOTOS} 张`;
+  const bad = photos.some(
+    (p) => typeof p !== 'string' || !/^uploads\/[A-Za-z0-9-]+\.(jpg|png)$/.test(p)
+  );
+  return bad ? '照片路径不合法' : null;
+}
+
+/**
  * 校验并提交打卡
  * @param {object} user    req.user（requireAuth 装载）
  * @param {object} payload { taskId, note, photos: ['uploads/xxx.jpg', ...] }（photos 由路由层 multer 落盘后的相对路径）
@@ -60,14 +74,7 @@ function createSoloCheckin(user, payload) {
   }
 
   const photos = Array.isArray(payload.photos) ? payload.photos : [];
-  const photoError =
-    photos.length < 1
-      ? '请至少上传 1 张照片作为打卡凭证'
-      : photos.length > MAX_PHOTOS
-        ? `照片最多 ${MAX_PHOTOS} 张`
-        : photos.some((p) => typeof p !== 'string' || !/^uploads\/[A-Za-z0-9-]+\.(jpg|png)$/.test(p))
-          ? '照片路径不合法'
-          : null;
+  const photoError = validatePhotoPaths(photos);
   if (photoError) throw httpError(400, '表单校验未通过', { photos: photoError });
 
   const task = getDb().prepare('SELECT * FROM tasks WHERE id = ?').get(taskId);
@@ -196,4 +203,11 @@ function myCheckinStats(userId) {
   return { total, today: todayCount, streak, last7 };
 }
 
-module.exports = { createSoloCheckin, listMyCheckins, myCheckinStats, MAX_PHOTOS, MAX_NOTE_LEN };
+module.exports = {
+  createSoloCheckin,
+  listMyCheckins,
+  myCheckinStats,
+  validatePhotoPaths,
+  MAX_PHOTOS,
+  MAX_NOTE_LEN,
+};

@@ -1,19 +1,18 @@
 /**
- * 单人打卡路由（Day 6；Day 10 上传逻辑抽至 src/middleware/upload.js 复用）
+ * 双人打卡路由（Day 10）
  *
  * 模块说明（全部需登录）：
- *   GET  /api/checkins          我的单人打卡记录（limit ≤ 50 / offset 分页，关联任务标题；
- *                               Day 7 增加 category / date 筛选，并返回符合条件的 total）
- *   GET  /api/checkins/stats    打卡统计（累计 / 今日 / 连续天数 / 近 7 天，Day 7）
- *   POST /api/checkins          提交打卡（multipart/form-data：taskId + note + photos[]）
+ *   GET  /api/duo-checkins   当前队伍的双人打卡记录（双方可见；taskId 筛选 + 分页）
+ *   POST /api/duo-checkins   提交双人打卡（multipart/form-data：duoTaskId + note + photos[]）
  *
- * 上传约定：见 src/middleware/upload.js（双人打卡路由同样复用）
+ * 上传约定与单人打卡一致（见 src/middleware/upload.js）；
+ * 每日一次约束在服务层（应用层预检 + duo_checkins 唯一索引兜底）。
  */
 const express = require('express');
 
 const { requireAuth } = require('../middleware/auth');
 const { uploadPhotos, cleanupUploadedPhotos, multerErrorResponse } = require('../middleware/upload');
-const checkinService = require('../services/checkin.service');
+const duoCheckinService = require('../services/duoCheckin.service');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -33,17 +32,9 @@ function sendError(prefix, res, err) {
 
 router.get('/', (req, res) => {
   try {
-    res.json(checkinService.listMyCheckins(req.user.id, req.query));
+    res.json(duoCheckinService.listDuoCheckins(req.user, req.query));
   } catch (err) {
-    sendError('checkins/list', res, err);
-  }
-});
-
-router.get('/stats', (req, res) => {
-  try {
-    res.json({ stats: checkinService.myCheckinStats(req.user.id) });
-  } catch (err) {
-    sendError('checkins/stats', res, err);
+    sendError('duoCheckins/list', res, err);
   }
 });
 
@@ -51,20 +42,20 @@ router.post('/', (req, res) => {
   if (!req.is('multipart/form-data')) {
     return res.status(400).json({ message: '请使用 multipart/form-data 提交打卡表单' });
   }
-  uploadPhotos.array('photos', checkinService.MAX_PHOTOS)(req, res, (multerErr) => {
-    if (multerErr) return sendError('checkins/upload', res, multerErr);
+  uploadPhotos.array('photos', 3)(req, res, (multerErr) => {
+    if (multerErr) return sendError('duoCheckins/upload', res, multerErr);
 
     const files = req.files || [];
     try {
-      const checkin = checkinService.createSoloCheckin(req.user, {
-        taskId: req.body.taskId,
+      const checkin = duoCheckinService.createDuoCheckin(req.user, {
+        duoTaskId: req.body.duoTaskId,
         note: req.body.note,
         photos: files.map((f) => `uploads/${f.filename}`),
       });
-      res.status(201).json({ message: '打卡成功', checkin });
+      res.status(201).json({ message: '打卡成功，搭档已收到通知', checkin });
     } catch (err) {
       cleanupUploadedPhotos(files); // 业务校验没过，不留孤儿图片
-      sendError('checkins/create', res, err);
+      sendError('duoCheckins/create', res, err);
     }
   });
 });

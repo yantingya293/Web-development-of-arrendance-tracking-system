@@ -1727,3 +1727,100 @@ button.upload-zone:disabled {
     align-self: flex-end;
   }
 }
+
+/* ===== Day 10：双人打卡（今日进度 / 打卡弹窗 / 记录区 / 协作动态） ===== */
+
+/* 任务卡片今日双方进度行 */
+.duo-today-line {
+  margin: var(--sp-2) 0 0;
+  font-size: var(--fs-sm);
+}
+
+.duo-today-done {
+  color: var(--success);
+  font-weight: 600;
+}
+
+.duo-today-todo {
+  color: var(--text-muted);
+}
+
+/* 任务卡片上「今日已打卡」小标 */
+.duo-today-mine {
+  align-self: center;
+  white-space: nowrap;
+}
+
+/* 打卡弹窗里的任务名与我的分工 */
+.duo-checkin-task {
+  margin: 0 0 var(--sp-1);
+  font-size: var(--fs-lg);
+  font-weight: 700;
+  color: var(--primary-dark);
+}
+
+.duo-checkin-division {
+  margin: 0 0 var(--sp-3);
+  font-size: var(--fs-sm);
+}
+
+/* 协作动态条目 */
+.notif-item {
+  padding: var(--sp-3) 0;
+  border-bottom: 1px solid var(--border);
+  position: relative;
+}
+
+.notif-item:last-child {
+  border-bottom: none;
+}
+
+.notif-item .notif-text {
+  margin: 0 0 var(--sp-1);
+  font-size: var(--fs-md);
+}
+
+.notif-item .notif-time {
+  margin: 0;
+  font-size: var(--fs-xs);
+}
+
+/* 未读小圆点 */
+.notif-item.unread::before {
+  content: '';
+  position: absolute;
+  left: calc(-1 * var(--sp-3));
+  top: 50%;
+  transform: translateY(-50%);
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--primary);
+}
+
+/* 首页双人任务预览的今日进度角标 */
+.duo-home-today {
+  margin-left: auto;
+  flex-shrink: 0;
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0 var(--sp-2);
+  background: var(--bg);
+}
+
+.duo-home-today.all {
+  color: var(--success);
+  border-color: #bbf7d0;
+  background: var(--success-light);
+}
+
+/* ---- Day 10 响应式：未读圆点贴边修正 ---- */
+@media (max-width: 480px) {
+  .notif-item.unread::before {
+    left: var(--sp-1);
+    top: var(--sp-2);
+    transform: none;
+  }
+}

@@ -85,17 +85,41 @@ function getTeamDuoTask(user, taskId) {
   return { team, row };
 }
 
-/** 任务列表附带双方分工归属（前端渲染「谁的分工」用） */
+/** 今日双方打卡进度（Day 10）：duo_task_id → 各成员今日打卡时间（null = 未打卡） */
+function getTodayProgressMap(team) {
+  const today = getDb()
+    .prepare("SELECT date('now', 'localtime') AS d")
+    .get().d;
+  const rows = getDb()
+    .prepare(
+      `SELECT dc.duo_task_id, dc.user_id, substr(dc.submitted_at, 12, 5) AS at
+       FROM duo_checkins dc JOIN duo_tasks dt ON dt.id = dc.duo_task_id
+       WHERE dt.team_id = ? AND dc.day = ?`
+    )
+    .all(team.id, today);
+
+  const map = new Map();
+  for (const r of rows) {
+    if (!map.has(r.duo_task_id)) map.set(r.duo_task_id, { a: null, b: null });
+    const slot = r.user_id === team.user_a ? 'a' : 'b';
+    map.get(r.duo_task_id)[slot] = r.at;
+  }
+  return map;
+}
+
+/** 任务列表附带双方分工归属（前端渲染「谁的分工」用）与今日打卡进度 */
 function decorateTasks(team, tasks) {
   const db = getDb();
   const userA = db.prepare('SELECT id, nickname FROM users WHERE id = ?').get(team.user_a);
   const userB = db.prepare('SELECT id, nickname FROM users WHERE id = ?').get(team.user_b);
+  const progress = getTodayProgressMap(team);
   return tasks.map((t) => ({
     ...t,
     members: {
       a: { id: team.user_a, nickname: userA ? userA.nickname : '（已注销）', division: t.division_a },
       b: { id: team.user_b, nickname: userB ? userB.nickname : '（已注销）', division: t.division_b },
     },
+    today: progress.get(t.id) || { a: null, b: null },
   }));
 }
 

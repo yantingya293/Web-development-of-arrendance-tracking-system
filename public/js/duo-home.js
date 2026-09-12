@@ -35,10 +35,16 @@
   }
 
   function renderTaskPreview(t) {
+    var done = 0;
+    if (t.today) {
+      if (t.today.a) done++;
+      if (t.today.b) done++;
+    }
     return (
       '<li class="duo-home-task">' +
         '<span class="tag tag-st-' + t.status + '">' + (STATUS_LABELS[t.status] || t.status) + '</span>' +
         '<span class="duo-home-task-title">' + escapeHtml(t.title) + '</span>' +
+        (t.status !== 'completed' ? '<span class="duo-home-today' + (done === 2 ? ' all' : '') + '">今日 ' + done + '/2</span>' : '') +
       '</li>'
     );
   }
