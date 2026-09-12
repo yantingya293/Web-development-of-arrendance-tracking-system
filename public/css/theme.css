@@ -1655,3 +1655,75 @@ button.upload-zone:disabled {
     flex-wrap: wrap;
   }
 }
+
+/* ===== Day 9：双人共同任务（分工区 / 首页任务预览） ===== */
+
+/* 任务卡片里的双方分工 */
+.duo-task-division {
+  margin: var(--sp-2) 0;
+  padding: var(--sp-2) var(--sp-3);
+  border-left: 3px solid #bfdbfe;
+  background: var(--bg);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+}
+
+.duo-task-division p {
+  margin: 0 0 var(--sp-1);
+  font-size: var(--fs-sm);
+}
+
+.duo-task-division p:last-child {
+  margin-bottom: 0;
+}
+
+.duo-division-name {
+  font-weight: 600;
+  color: var(--primary-dark);
+}
+
+/* 弹窗里分工字段的归属标注 */
+.duo-division-owner {
+  font-size: var(--fs-xs);
+  font-weight: 400;
+}
+
+/* 首页双人板块：共同任务预览列表 */
+.duo-home-tasks {
+  list-style: none;
+  margin: var(--sp-2) 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+
+.duo-home-task {
+  display: flex;
+  gap: var(--sp-2);
+  align-items: center;
+  min-width: 0;
+}
+
+.duo-home-task-title {
+  font-size: var(--fs-sm);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.duo-home-more {
+  margin: var(--sp-2) 0 0;
+  font-size: var(--fs-xs);
+}
+
+/* ---- Day 9 响应式 ---- */
+@media (max-width: 480px) {
+  .duo-home-partner {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .duo-home-partner .btn {
+    align-self: flex-end;
+  }
+}

@@ -44,7 +44,7 @@ function sweepOverdue() {
 }
 
 /**
- * 截止时间归一化：
+ * 截止时间归一化（Day 9 起供双人共同任务服务复用）：
  *   空值 → null（无截止）；'YYYY-MM-DD' → 补 ' 23:59:59'；'…THH:MM' → 空格 + 补 ':00'
  *   格式非法或不是真实日期时间 → 返回 'invalid'
  */
@@ -176,4 +176,5 @@ module.exports = {
   updateSoloTask,
   updateSoloTaskStatus,
   deleteSoloTask,
+  normalizeDeadline,
 };

@@ -21,6 +21,65 @@
         <%- include('partials/components/loading', { text: '正在加载组队信息…' }) %>
       </div>
     </section>
+
+    <!-- Day 9：共同任务区（列表 + 新建 / 编辑弹窗 + 状态流转） -->
+    <section class="card section-card">
+      <div class="section-head">
+        <div class="section-title">
+          <h2>共同任务</h2>
+          <span class="tag">双人共建</span>
+        </div>
+        <button type="button" id="newDuoTaskBtn" class="btn btn-primary btn-sm" hidden>+ 新建共同任务</button>
+      </div>
+      <div class="section-body" id="duoTaskBody"></div>
+    </section>
+
+    <!-- Day 9：共同任务 新建 / 编辑 弹窗 -->
+    <div class="modal-overlay" id="duoTaskModal" hidden>
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="duoTaskModalTitle">
+        <div class="modal-head">
+          <h3 id="duoTaskModalTitle">新建共同任务</h3>
+          <button type="button" class="modal-close" id="duoTaskModalClose" aria-label="关闭">×</button>
+        </div>
+        <form id="duoTaskForm" novalidate>
+          <input type="hidden" id="duoTaskFormId" name="id" value="" />
+          <div class="form-group">
+            <label for="duoTaskTitle">任务标题</label>
+            <input id="duoTaskTitle" name="title" type="text" maxlength="50"
+                   placeholder="一句话描述任务，如：一起刷完近五年英语真题" />
+            <p class="field-error" data-error-for="title"></p>
+          </div>
+          <div class="form-group">
+            <label for="duoTaskDesc">任务说明（可选）</label>
+            <textarea id="duoTaskDesc" name="description" maxlength="500"
+                      placeholder="补充要求、教材范围、验收标准…"></textarea>
+            <p class="field-error" data-error-for="description"></p>
+          </div>
+          <div class="form-group">
+            <label for="duoTaskDeadline">截止时间（可选）</label>
+            <input id="duoTaskDeadline" name="deadline" type="datetime-local" />
+            <p class="field-error" data-error-for="deadline"></p>
+          </div>
+          <div class="form-group">
+            <label for="duoDivisionA">成员 A 的分工（可选）<span class="muted duo-division-owner" id="duoDivisionAOwner"></span></label>
+            <input id="duoDivisionA" name="division_a" type="text" maxlength="100"
+                   placeholder="如：负责前两篇阅读 + 答案校对" />
+            <p class="field-error" data-error-for="division_a"></p>
+          </div>
+          <div class="form-group">
+            <label for="duoDivisionB">成员 B 的分工（可选）<span class="muted duo-division-owner" id="duoDivisionBOwner"></span></label>
+            <input id="duoDivisionB" name="division_b" type="text" maxlength="100"
+                   placeholder="如：负责后两篇阅读 + 错题整理" />
+            <p class="field-error" data-error-for="division_b"></p>
+          </div>
+          <div class="alert alert-error" id="duoTaskFormError" hidden></div>
+          <div class="modal-actions">
+            <button type="button" class="btn btn-outline" id="duoTaskModalCancel">取消</button>
+            <button type="submit" class="btn btn-primary">保存任务</button>
+          </div>
+        </form>
+      </div>
+    </div>
     <script src="/js/duo.js" defer></script>
   <% } else { %>
     <section class="card section-card">
@@ -34,6 +93,22 @@
         <%- include('partials/components/empty', {
               emptyTitle: '登录后开始组队',
               emptyHint: '绑定一位学习搭档，互相监督、共同完成学习任务。',
+              emptyActionText: '立即登录',
+              emptyActionHref: '/login'
+            }) %>
+      </div>
+    </section>
+    <section class="card section-card">
+      <div class="section-head">
+        <div class="section-title">
+          <h2>共同任务</h2>
+          <span class="tag">双人共建</span>
+        </div>
+      </div>
+      <div class="section-body">
+        <%- include('partials/components/empty', {
+              emptyTitle: '组队后即可共建任务',
+              emptyHint: '共同任务支持双方分工、截止时间与状态流转，双方打卡在 Day 10 上线。',
               emptyActionText: '立即登录',
               emptyActionHref: '/login'
             }) %>
