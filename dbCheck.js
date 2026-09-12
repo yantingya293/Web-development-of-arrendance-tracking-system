@@ -3,6 +3,7 @@
  *
  * Day 2：建库 / 约束 / 种子数据（13 项）
  * Day 5：单人任务服务层（创建归一化 / 校验 / 状态流转 / 越权 / 逾期标记 / 可见性，7 项）
+ * Day 6：单人打卡服务层（写入联动 / 校验 / 越权 / 逾期判定 / 公共任务 / 列表，6 项）
  *
  * 运行：node dbCheck.js
  * 说明：探针写入全部包在一个事务里并在结束时 ROLLBACK，不会污染数据文件。
@@ -239,6 +240,96 @@ function main() {
       if (!mine.some((t) => t.owner_id === null)) throw new Error('公共任务不可见');
       const others = taskService.listSoloTasks(userBId);
       if (others.some((t) => t.id === day5TaskId)) throw new Error('他人任务不应可见');
+    });
+
+    // --- Day 6：单人打卡服务（服务层只写库不碰文件，photos 传相对路径即可随事务回滚） ---
+    const checkinService = require('./src/services/checkin.service');
+    const userA = { id: userAId, role: 'user' };
+    const userB = { id: userBId, role: 'user' };
+    let day6TaskId, day6OverdueTaskId, publicTaskId;
+    check('checkin.service 提交打卡（照片 JSON 落库 + unstarted 自动转 in_progress）', () => {
+      const t = taskService.createSoloTask(userAId, {
+        title: '探针：今天背单词',
+        category: 'daily',
+        deadline: '2099-01-01 00:00:00',
+      });
+      day6TaskId = t.id;
+      const c = checkinService.createSoloCheckin(userA, {
+        taskId: t.id,
+        note: '打卡一次',
+        photos: ['uploads/dbcheck-a1.jpg', 'uploads/dbcheck-a2.jpg'],
+      });
+      if (
+        c.task_type !== 'solo' ||
+        c.is_overdue !== 0 ||
+        JSON.stringify(c.image_paths) !== JSON.stringify(['uploads/dbcheck-a1.jpg', 'uploads/dbcheck-a2.jpg'])
+      )
+        throw new Error('打卡记录不一致: ' + JSON.stringify(c));
+      const after = db.prepare(`SELECT status FROM tasks WHERE id = ?`).get(t.id);
+      if (after.status !== 'in_progress') throw new Error('未开始任务打卡后应转为 in_progress');
+    });
+    check('checkin.service 表单校验（缺照片 / 备注超长）', () => {
+      let caught;
+      try {
+        checkinService.createSoloCheckin(userA, { taskId: day6TaskId, note: '', photos: [] });
+      } catch (err) {
+        caught = err;
+      }
+      if (!caught || caught.status !== 400 || !caught.errors.photos) throw new Error('缺照片未按预期抛 400');
+      let caught2;
+      try {
+        checkinService.createSoloCheckin(userA, { taskId: day6TaskId, note: 'x'.repeat(501), photos: ['uploads/a.jpg'] });
+      } catch (err) {
+        caught2 = err;
+      }
+      if (!caught2 || caught2.status !== 400 || !caught2.errors.note) throw new Error('备注超长未按预期抛 400');
+    });
+    check('checkin.service 越权防护（他人任务按不存在处理）', () => {
+      let caught;
+      try {
+        checkinService.createSoloCheckin(userB, {
+          taskId: day6TaskId,
+          note: '',
+          photos: ['uploads/b.jpg'],
+        });
+      } catch (err) {
+        caught = err;
+      }
+      if (!caught || caught.status !== 404) throw new Error('他人任务打卡应返回 404');
+    });
+    check('checkin.service 逾期判定（过截止任务打卡 is_overdue = 1）', () => {
+      const t = taskService.createSoloTask(userAId, {
+        title: '探针：过期补打卡',
+        category: 'weekly',
+        deadline: '2000-01-01 00:00:00',
+      });
+      day6OverdueTaskId = t.id;
+      const c = checkinService.createSoloCheckin(userA, {
+        taskId: t.id,
+        note: '补打卡',
+        photos: ['uploads/dbcheck-late.jpg'],
+      });
+      if (c.is_overdue !== 1) throw new Error('过截止打卡未被标记 is_overdue');
+    });
+    check('checkin.service 公共任务全员可打卡', () => {
+      publicTaskId = db
+        .prepare(`INSERT INTO tasks (owner_id, type, title) VALUES (NULL, 'solo', '探针：公共打卡任务')`)
+        .run().lastInsertRowid;
+      const c = checkinService.createSoloCheckin(userB, {
+        taskId: publicTaskId,
+        note: '普通用户打卡公共任务',
+        photos: ['uploads/dbcheck-pub.jpg'],
+      });
+      if (c.task_title !== '探针：公共打卡任务' || c.task_category !== 'daily')
+        throw new Error('公共任务打卡关联字段缺失');
+    });
+    check('checkin.service listMyCheckins（按时间倒序 + 关联任务标题 + limit 生效）', () => {
+      const list = checkinService.listMyCheckins(userAId, {});
+      if (list.length < 2) throw new Error('打卡记录数量异常');
+      if (list[0].submitted_at < list[list.length - 1].submitted_at) throw new Error('未按时间倒序');
+      if (!list.every((c) => c.task_title && Array.isArray(c.image_paths))) throw new Error('关联字段缺失');
+      const one = checkinService.listMyCheckins(userAId, { limit: 1 });
+      if (one.length !== 1) throw new Error('limit 未生效');
     });
   } finally {
     db.exec('ROLLBACK'); // 所有探针数据不落盘

@@ -69,7 +69,8 @@
   }
 
   /* 首页「实时打卡动态」骨架：Loading → Empty
-     Day 6 接入真实接口后，替换为 fetch('/api/checkins') 并渲染列表 */
+     打卡接口已在 Day 6 上线（/api/checkins），动态列表数据源在 Day 7 接入后
+     替换为 fetch('/api/checkins') 并渲染列表 */
   var refreshBtn = document.getElementById('refreshFeedBtn');
   var feedBody = document.getElementById('feedBody');
   if (refreshBtn && feedBody) {
@@ -85,7 +86,7 @@
         feedLoading.hidden = true;
         feedEmpty.hidden = false;
         refreshBtn.disabled = false;
-        window.showToast('暂无新动态（骨架占位，Day 6 接入真实数据）');
+        window.showToast('暂无新动态（骨架占位，Day 7 接入真实数据）');
       }, 600);
     });
   }

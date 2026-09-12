@@ -1157,3 +1157,95 @@ body {
     padding: 5px 10px;
   }
 }
+
+/* ===== Day 6：打卡提交板块（可点击上传区 / 照片预览 / 卡片打卡入口） ===== */
+
+/* ---- 上传区改为可点击按钮（未登录仍为静态 div 占位） ---- */
+button.upload-zone {
+  width: 100%;
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color var(--transition), color var(--transition), background var(--transition);
+}
+
+button.upload-zone:hover,
+button.upload-zone:focus-visible {
+  border-color: #bfdbfe;
+  color: var(--primary-dark);
+  background: var(--primary-light);
+}
+
+button.upload-zone:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+button.upload-zone:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.upload-zone-sub {
+  font-size: var(--fs-xs);
+}
+
+/* ---- 照片预览网格（最多 3 张） ---- */
+.photo-preview {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: var(--sp-2);
+  margin-top: var(--sp-2);
+}
+
+.photo-preview[hidden] {
+  display: none;
+}
+
+.photo-item {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  overflow: hidden;
+}
+
+.photo-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.photo-remove {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(15, 23, 42, 0.6);
+  color: #fff;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.photo-remove:hover {
+  background: var(--danger);
+}
+
+/* ---- 任务卡片「打卡」入口（主操作视觉，强于其它幽灵按钮） ---- */
+.task-card-actions .btn-checkin {
+  border-color: #bfdbfe;
+  background: var(--primary-light);
+  color: var(--primary-dark);
+}
+
+.task-card-actions .btn-checkin:hover {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: #fff;
+}

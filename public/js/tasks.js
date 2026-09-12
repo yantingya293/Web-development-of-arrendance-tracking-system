@@ -1,6 +1,8 @@
 /* 首页「个人独立任务 & 学习问题」板块脚本（Day 5）
    加载 /api/tasks → 渲染任务卡片；支持分类筛选、新建、编辑、删除与状态流转。
-   公共任务（owner_id 为 NULL）对普通用户只读，仅管理员可编辑删除。 */
+   公共任务（owner_id 为 NULL）对普通用户只读，仅管理员可编辑删除。
+   Day 6：未完成任务卡片新增「打卡」入口（经 window.selectCheckinTask 联动打卡表单），
+   并监听 checkin:created 事件在打卡成功后刷新列表。 */
 (function () {
   'use strict';
 
@@ -76,11 +78,17 @@
     return null;
   }
 
+  /** 未完成的任务都可打卡（自己的 + 公共的；overdue 可补打卡） */
+  function canCheckin(status) {
+    return status !== 'completed';
+  }
+
   /* ---------- 渲染 ---------- */
 
   function renderCard(t) {
     var canManage = t.owner_id === viewerId || viewerIsAdmin;
     var next = canManage ? nextStatusAction(t.status) : null;
+    var checkinable = canCheckin(t.status);
     var meta = [];
     if (t.owner_id === null) meta.push('公共任务');
     if (t.deadline) meta.push('截止 ' + fmtDeadline(t.deadline));
@@ -96,8 +104,9 @@
           (t.description ? '<p class="task-card-desc">' + escapeHtml(t.description) + '</p>' : '') +
           (meta.length ? '<p class="task-card-meta muted">' + meta.join(' · ') + '</p>' : '') +
         '</div>' +
-        (next || canManage
+        (next || canManage || checkinable
           ? '<div class="task-card-actions">' +
+              (checkinable ? '<button type="button" class="btn btn-sm btn-checkin" data-action="checkin">打卡</button>' : '') +
               (next ? '<button type="button" class="btn btn-sm" data-action="status" data-status="' + next.status + '">' + next.label + '</button>' : '') +
               (canManage ? '<button type="button" class="btn btn-sm" data-action="edit">编辑</button>' +
                           '<button type="button" class="btn btn-sm btn-danger-ghost" data-action="delete">删除</button>' : '') +
@@ -314,7 +323,16 @@
       removeTask(id, btn);
     } else if (action === 'status') {
       setStatus(id, btn.getAttribute('data-status'), btn);
+    } else if (action === 'checkin') {
+      // 联动打卡表单（checkin.js 提供 window.selectCheckinTask）
+      var ok = window.selectCheckinTask && window.selectCheckinTask(Number(id));
+      if (!ok) window.showToast('该任务暂不可打卡（可能已完成）', 'info');
     }
+  });
+
+  /* 打卡成功后刷新任务列表（未开始的任务打卡后自动转为进行中） */
+  document.addEventListener('checkin:created', function () {
+    load();
   });
 
   /* ---------- 分类筛选 ---------- */
