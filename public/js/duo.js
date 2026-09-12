@@ -816,7 +816,7 @@
         var text = render ? render(n.payload || {}) : '收到一条新通知';
         return (
           '<div class="notif-item' + (n.read_at ? '' : ' unread') + '">' +
-            '<p class="notif-text">' + text + '</p>' +
+            '<p class="notif-text">' + escapeHtml(text) + '</p>' +
             '<p class="muted notif-time">' + escapeHtml(n.created_at) + '</p>' +
           '</div>'
         );

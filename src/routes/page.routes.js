@@ -16,6 +16,14 @@ const { requireAuthPage, requireAdminPage } = require('../middleware/auth');
 
 const router = express.Router();
 
+/** 登录后回跳地址：仅接受本站相对路径。
+    拒绝 // 与 /\ 开头（浏览器视作协议相对地址跳外站，防开放重定向钓鱼）。 */
+function safeNext(raw) {
+  if (typeof raw !== 'string' || !raw.startsWith('/')) return '/';
+  if (raw.startsWith('//') || raw.startsWith('/\\')) return '/';
+  return raw;
+}
+
 router.get('/', (req, res) => {
   res.render('index', { title: '学习打卡网页', active: 'home' });
 });
@@ -26,7 +34,7 @@ router.get('/login', (req, res) => {
     title: '登录',
     active: '',
     registered: req.query.registered === '1',
-    next: typeof req.query.next === 'string' && req.query.next.startsWith('/') ? req.query.next : '/',
+    next: safeNext(req.query.next),
   });
 });
 
