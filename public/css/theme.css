@@ -1824,3 +1824,121 @@ button.upload-zone:disabled {
     transform: none;
   }
 }
+
+/* ===== Day 11：双人协作数据板块 ===== */
+
+/* 统计卡四列横排（组队数据速览） */
+.stats-row-4 {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+.duo-tasks-summary {
+  margin: 0 0 var(--sp-4);
+  font-size: var(--fs-sm);
+}
+
+/* 近 7 天双方打卡对比柱状图 */
+.duo-chart {
+  display: flex;
+  gap: var(--sp-2);
+  align-items: flex-end;
+  padding: var(--sp-2) 0 var(--sp-1);
+  overflow-x: auto;
+}
+
+.duo-chart-day {
+  flex: 1 1 0;
+  min-width: 44px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-1);
+}
+
+.duo-chart-bars {
+  display: flex;
+  gap: 4px;
+  align-items: flex-end;
+  height: 116px; /* 96px 最高柱 + 柱顶数字空间 */
+}
+
+.duo-bar-group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.duo-bar-num {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  line-height: 1;
+  margin-bottom: 3px;
+  min-height: 12px;
+}
+
+.duo-bar {
+  display: block;
+  width: 14px;
+  border-radius: 3px 3px 0 0;
+}
+
+.duo-bar.me {
+  background: var(--primary);
+}
+
+.duo-bar.partner {
+  background: #93c5fd;
+}
+
+/* 今日列高亮 */
+.duo-chart-day.is-today .duo-chart-label {
+  color: var(--primary-dark);
+  font-weight: 700;
+}
+
+.duo-chart-day.is-today .duo-chart-bars {
+  border-bottom: 2px solid var(--primary);
+}
+
+.duo-chart-label {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  text-align: center;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
+/* 图例 */
+.duo-chart-legend {
+  display: flex;
+  gap: var(--sp-4);
+  margin-top: var(--sp-2);
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+}
+
+.duo-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  margin-right: var(--sp-1);
+  vertical-align: -1px;
+}
+
+.duo-dot-me {
+  background: var(--primary);
+}
+
+.duo-dot-partner {
+  background: #93c5fd;
+}
+
+/* ---- Day 11 响应式：四列统计卡降为两列 ---- */
+@media (max-width: 768px) {
+  .stats-row-4 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+

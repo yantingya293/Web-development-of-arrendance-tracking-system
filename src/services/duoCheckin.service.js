@@ -1,9 +1,10 @@
 /**
- * 双人打卡服务层（Day 10）
+ * 双人打卡服务层（Day 10；Day 11 增协作统计）
  *
  * 模块说明：
  *   createDuoCheckin(user, payload)    提交双人打卡（校验队伍 / 任务 / 照片 / 备注，写 duo_checkins）
  *   listDuoCheckins(user, query)       当前队伍的双人打卡记录（双方可见，可按任务筛选）
+ *   duoStats(user)                     队伍协作统计（任务分布 / 双方累计 / 今日 / 连续天数 / 近 7 天）
  *
  * 策略约定（Day 10 拍板）：
  *   * 与单人打卡的差异：同一成员对同一共同任务每天最多打卡一次
@@ -161,4 +162,85 @@ function listDuoCheckins(user, query = {}) {
   return { checkins: rows.map(withParsedImages), total };
 }
 
-module.exports = { createDuoCheckin, listDuoCheckins };
+/**
+ * 队伍协作统计（Day 11，供 /duo「协作数据」板块；无 active 队伍时 409）
+ *   tasks    共同任务状态分布（total / unstarted / in_progress / completed / overdue）
+ *   checkins 双人打卡累计（total，me / partner 为相对当前用户的视角）
+ *   today    今日双方打卡次数与 both（双方是否都已打卡）
+ *   streak   连续协作天数：双方同一天都打过卡的连续自然日；今天未双双完成时
+ *            从昨天起算（与单人连续打卡口径一致，保持激励语义）
+ *   last7    近 7 天逐日双方打卡次数（旧 → 新，供对比柱状图渲染）
+ */
+function duoStats(user) {
+  const team = getActiveTeamOrThrow(user.id);
+  const db = getDb();
+
+  const tasks = { total: 0, unstarted: 0, in_progress: 0, completed: 0, overdue: 0 };
+  for (const row of db
+    .prepare('SELECT status, COUNT(*) AS n FROM duo_tasks WHERE team_id = ? GROUP BY status')
+    .all(team.id)) {
+    tasks.total += row.n;
+    if (row.status in tasks) tasks[row.status] = row.n;
+  }
+
+  // 按天 × 成员聚合双人打卡（day 列即打卡业务日期，见 schema）
+  const dayRows = db
+    .prepare(
+      `SELECT dc.day, dc.user_id, COUNT(*) AS n
+       FROM duo_checkins dc JOIN duo_tasks dt ON dt.id = dc.duo_task_id
+       WHERE dt.team_id = ?
+       GROUP BY dc.day, dc.user_id`
+    )
+    .all(team.id);
+
+  const byDay = new Map(); // day -> { me, partner }
+  let total = 0;
+  let mine = 0;
+  let partners = 0;
+  for (const r of dayRows) {
+    const slot = r.user_id === user.id ? 'me' : 'partner';
+    if (!byDay.has(r.day)) byDay.set(r.day, { me: 0, partner: 0 });
+    byDay.get(r.day)[slot] += r.n;
+    total += r.n;
+    if (slot === 'me') mine += r.n;
+    else partners += r.n;
+  }
+
+  const today = nowLocal().slice(0, 10);
+  const todayRow = byDay.get(today) || { me: 0, partner: 0 };
+
+  const dayMs = 24 * 60 * 60 * 1000;
+  const shift = (day, n) => {
+    const d = new Date(day + 'T00:00:00');
+    d.setTime(d.getTime() - n * dayMs);
+    const p = (x) => String(x).padStart(2, '0');
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+  };
+
+  let streak = 0;
+  let cursor = todayRow.me > 0 && todayRow.partner > 0 ? today : shift(today, 1);
+  while (true) {
+    const row = byDay.get(cursor);
+    if (!row || row.me === 0 || row.partner === 0) break;
+    streak++;
+    cursor = shift(cursor, 1);
+  }
+
+  const last7 = [];
+  for (let i = 6; i >= 0; i--) {
+    const day = shift(today, i);
+    const row = byDay.get(day) || { me: 0, partner: 0 };
+    last7.push({ day, me: row.me, partner: row.partner });
+  }
+
+  return {
+    team_id: team.id,
+    tasks,
+    checkins: { total, me: mine, partner: partners },
+    today: { me: todayRow.me, partner: todayRow.partner, both: todayRow.me > 0 && todayRow.partner > 0 },
+    streak,
+    last7,
+  };
+}
+
+module.exports = { createDuoCheckin, listDuoCheckins, duoStats };

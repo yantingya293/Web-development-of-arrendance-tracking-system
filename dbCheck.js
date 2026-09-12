@@ -8,6 +8,7 @@
  * Day 8：双人组队服务层（邀请校验 / 单发出约束 / 接受建队 / 解绑，4 项）
  * Day 9：双人共同任务服务层（创建装饰 / 状态与逾期，2 项）
  * Day 10：双人打卡服务层（打卡联动通知 / 每日一次 / 双方进度 / 完成拦截，4 项）
+ * Day 11：双人协作统计（任务分布 / 双方累计 / 连续天数 / 解绑后 409，2 项）
  * 安全加固：改密与会话作废 / 上传魔数校验（3 项，检查器支持 async）
  *
  * 运行：node dbCheck.js
@@ -489,6 +490,20 @@ async function main() {
         throw new Error('已完成任务打卡未被拦截: ' + JSON.stringify(caught && caught.message));
     });
 
+    // --- Day 11：双人协作统计（此时队伍 active，双方今日各打卡 1 次；任务 3 个：进行中 1 / 逾期 1 / 已完成 1） ---
+    await check('duoCheckin.service duoStats（任务分布 / 双方累计 / 今日 / 连续天数）', () => {
+      const s = duoCheckinService.duoStats(userAFull);
+      if (s.tasks.total !== 3 || s.tasks.in_progress !== 1 || s.tasks.overdue !== 1 || s.tasks.completed !== 1)
+        throw new Error('任务分布不一致: ' + JSON.stringify(s.tasks));
+      if (s.checkins.total !== 2 || s.checkins.me !== 1 || s.checkins.partner !== 1)
+        throw new Error('双方累计不一致: ' + JSON.stringify(s.checkins));
+      if (s.today.me !== 1 || s.today.partner !== 1 || s.today.both !== true)
+        throw new Error('今日进度不一致: ' + JSON.stringify(s.today));
+      if (s.streak !== 1) throw new Error('双方今日均打卡时连续协作应为 1，实际 ' + s.streak);
+      if (s.last7.length !== 7 || s.last7[6].me !== 1 || s.last7[6].partner !== 1)
+        throw new Error('近 7 天数组或今日数据不一致');
+    });
+
     // --- Day 8 收尾：解绑（搭档通知 + 队伍归档） ---
     await check('team.service 解绑（状态归档 + 搭档通知）', () => {
       teamService.unbindTeam(userAFull);
@@ -502,6 +517,15 @@ async function main() {
       if (!notif) throw new Error('搭档未收到解绑通知');
       const view = teamService.getTeamView(userAId);
       if (view.team !== null) throw new Error('解绑后组队全貌应无队伍');
+    });
+    await check('duoCheckin.service duoStats（解绑后无队伍 → 409）', () => {
+      let caught;
+      try {
+        duoCheckinService.duoStats(userAFull);
+      } catch (err) {
+        caught = err;
+      }
+      if (!caught || caught.status !== 409) throw new Error('无队伍统计应返回 409');
     });
 
     // --- 安全加固：改密 / 会话作废 / 上传魔数 ---

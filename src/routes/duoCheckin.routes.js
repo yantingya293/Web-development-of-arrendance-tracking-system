@@ -1,9 +1,10 @@
 /**
- * 双人打卡路由（Day 10）
+ * 双人打卡路由（Day 10；Day 11 增协作统计）
  *
  * 模块说明（全部需登录）：
- *   GET  /api/duo-checkins   当前队伍的双人打卡记录（双方可见；taskId 筛选 + 分页）
- *   POST /api/duo-checkins   提交双人打卡（multipart/form-data：duoTaskId + note + photos[]）
+ *   GET  /api/duo-checkins          当前队伍的双人打卡记录（双方可见；taskId 筛选 + 分页）
+ *   GET  /api/duo-checkins/stats    队伍协作统计（任务分布 / 双方累计 / 今日 / 近 7 天，Day 11）
+ *   POST /api/duo-checkins          提交双人打卡（multipart/form-data：duoTaskId + note + photos[]）
  *
  * 上传约定与单人打卡一致（见 src/middleware/upload.js）；
  * 每日一次约束在服务层（应用层预检 + duo_checkins 唯一索引兜底）。
@@ -49,6 +50,14 @@ router.get('/', (req, res) => {
     res.json(duoCheckinService.listDuoCheckins(req.user, req.query));
   } catch (err) {
     sendError('duoCheckins/list', res, err);
+  }
+});
+
+router.get('/stats', (req, res) => {
+  try {
+    res.json({ stats: duoCheckinService.duoStats(req.user) });
+  } catch (err) {
+    sendError('duoCheckins/stats', res, err);
   }
 });
 

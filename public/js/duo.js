@@ -1,7 +1,8 @@
-/* 双人协作广场页脚本（Day 8 组队 / Day 9 共同任务 / Day 10 双方打卡）
+/* 双人协作广场页脚本（Day 8 组队 / Day 9 共同任务 / Day 10 双方打卡 / Day 11 协作数据）
    组队区：GET /api/team → 收到的邀请（接受 / 拒绝）→ 当前搭档（解绑）→ 邀请表单。
    任务区：GET /api/duo-tasks → 任务卡片（今日双方进度 / 分工 / 截止 / 状态流转 / 打卡）。
    打卡区：POST /api/duo-checkins（每日一次）；记录区 GET /api/duo-checkins；
+   协作数据：GET /api/duo-checkins/stats（统计卡 + 近 7 天双方打卡对比柱状图）；
    协作动态：GET /api/notifications（搭档打卡 / 解绑 / 邀请通知）。 */
 (function () {
   'use strict';
@@ -338,6 +339,7 @@
       renderTasksArea();
       renderRecordFilter();
       renderRecords();
+      loadStatsArea();
       return;
     }
     request('GET', '/api/duo-tasks')
@@ -351,11 +353,115 @@
         }
         renderTasksArea();
         renderRecordFilter();
+        loadStatsArea(); // 统计随任务 / 打卡变化联动刷新（Day 11）
       })
       .catch(function () {
         taskBody.innerHTML =
           '<div class="empty-state"><p class="empty-title">加载失败</p>' +
           '<p class="empty-hint muted">网络异常，请刷新重试。</p></div>';
+      });
+  }
+
+  /* ---------- 协作数据板块（Day 11） ---------- */
+
+  var statsSection = document.getElementById('duoStatsSection');
+  var statsBody = document.getElementById('duoStatsBody');
+  var WEEKDAY_SHORT = ['日', '一', '二', '三', '四', '五', '六'];
+  var CHART_MAX_BAR_PX = 96; // 柱状图最高柱的像素（容器另留数字空间）
+
+  function statCardHtml(value, label) {
+    return (
+      '<div class="stat-card card">' +
+        '<p class="stat-value">' + value + '</p>' +
+        '<p class="stat-label">' + label + '</p>' +
+      '</div>'
+    );
+  }
+
+  /** 单日柱组：两根柱（我 / 搭档），柱高按 7 天最大次数等比缩放，0 次显示 3px 占位 */
+  function chartDayHtml(day, me, partner, max, isToday, partnerName) {
+    var barH = function (n) {
+      return n > 0 ? Math.max(10, Math.round((n / max) * CHART_MAX_BAR_PX)) : 3;
+    };
+    var weekday = WEEKDAY_SHORT[new Date(day + 'T00:00:00').getDay()];
+    return (
+      '<div class="duo-chart-day' + (isToday ? ' is-today' : '') + '">' +
+        '<div class="duo-chart-bars">' +
+          '<div class="duo-bar-group" title="我 ' + me + ' 次">' +
+            '<span class="duo-bar-num">' + me + '</span>' +
+            '<span class="duo-bar me" style="height:' + barH(me) + 'px"></span>' +
+          '</div>' +
+          '<div class="duo-bar-group" title="' + escapeHtml(partnerName) + ' ' + partner + ' 次">' +
+            '<span class="duo-bar-num">' + partner + '</span>' +
+            '<span class="duo-bar partner" style="height:' + barH(partner) + 'px"></span>' +
+          '</div>' +
+        '</div>' +
+        '<span class="duo-chart-label">' + weekday + '<br />' + day.slice(5) + '</span>' +
+      '</div>'
+    );
+  }
+
+  function renderStats(stats) {
+    var partnerName = (view.team && view.team.partner.nickname) || '搭档';
+    var t = stats.tasks || {};
+    var c = stats.checkins || {};
+
+    var distParts = [];
+    if (t.in_progress) distParts.push('进行中 ' + t.in_progress);
+    if (t.unstarted) distParts.push('未开始 ' + t.unstarted);
+    if (t.completed) distParts.push('已完成 ' + t.completed);
+    if (t.overdue) distParts.push('已逾期 ' + t.overdue);
+    var taskSummary = t.total
+      ? '共同任务共 ' + t.total + ' 个：' + distParts.join(' · ')
+      : '还没有共同任务，点击下方「新建共同任务」开始规划。';
+
+    var last7 = stats.last7 || [];
+    var max = 1;
+    last7.forEach(function (d) {
+      max = Math.max(max, d.me, d.partner);
+    });
+    var todayStr = (function () {
+      var n = new Date();
+      var p = function (x) { return String(x).padStart(2, '0'); };
+      return n.getFullYear() + '-' + p(n.getMonth() + 1) + '-' + p(n.getDate());
+    })();
+
+    statsBody.innerHTML =
+      '<div class="stats-row stats-row-4">' +
+        statCardHtml(stats.streak || 0, '连续协作（天）') +
+        statCardHtml(c.total || 0, '累计双人打卡') +
+        statCardHtml(c.me || 0, '我的打卡') +
+        statCardHtml(c.partner || 0, escapeHtml(partnerName) + ' 的打卡') +
+      '</div>' +
+      '<p class="muted duo-tasks-summary">' + escapeHtml(taskSummary) + '</p>' +
+      '<h3 class="duo-subtitle">近 7 天打卡对比</h3>' +
+      '<div class="duo-chart" role="img" aria-label="近 7 天我与搭档每日打卡次数对比">' +
+        last7
+          .map(function (d) {
+            return chartDayHtml(d.day, d.me, d.partner, max, d.day === todayStr, partnerName);
+          })
+          .join('') +
+      '</div>' +
+      '<div class="duo-chart-legend">' +
+        '<span><i class="duo-dot duo-dot-me" aria-hidden="true"></i>我</span>' +
+        '<span><i class="duo-dot duo-dot-partner" aria-hidden="true"></i>' + escapeHtml(partnerName) + '</span>' +
+      '</div>';
+  }
+
+  function loadStatsArea() {
+    if (!statsSection || !statsBody) return;
+    if (!view || !view.team) {
+      statsSection.hidden = true; // 未组队：不展示协作数据
+      return;
+    }
+    request('GET', '/api/duo-checkins/stats')
+      .then(function (r) {
+        if (!r.ok) throw new Error(r.body.message);
+        statsSection.hidden = false;
+        renderStats(r.body.stats || {});
+      })
+      .catch(function () {
+        statsSection.hidden = true; // 加载失败宁可收起，不打扰主流程
       });
   }
 
