@@ -9,6 +9,7 @@
  * Day 9：双人共同任务服务层（创建装饰 / 状态与逾期，2 项）
  * Day 10：双人打卡服务层（打卡联动通知 / 每日一次 / 双方进度 / 完成拦截，4 项）
  * Day 11：双人协作统计（任务分布 / 双方累计 / 连续天数 / 解绑后 409，2 项）
+ * Day 12：全员打卡广场（合并流 / 倒序 / scope 筛选 / 统计，2 项）
  * 安全加固：改密与会话作废 / 上传魔数校验（3 项，检查器支持 async）
  *
  * 运行：node dbCheck.js
@@ -502,6 +503,40 @@ async function main() {
       if (s.streak !== 1) throw new Error('双方今日均打卡时连续协作应为 1，实际 ' + s.streak);
       if (s.last7.length !== 7 || s.last7[6].me !== 1 || s.last7[6].partner !== 1)
         throw new Error('近 7 天数组或今日数据不一致');
+    });
+
+    // --- Day 12：全员打卡广场（真实库可能已有历史打卡，全部用相对断言） ---
+    const galleryService = require('./src/services/gallery.service');
+    await check('gallery.service 全站打卡流（单人 + 双人合并 / 倒序 / scope 筛选）', () => {
+      const before = galleryService.listGallery({}).total;
+      db.prepare(
+        `INSERT INTO checkins (user_id, task_id, task_type, image_paths, note) VALUES (?, ?, 'solo', '[]', '广场探针打卡')`
+      ).run(userBId, publicTaskId);
+      const all = galleryService.listGallery({ limit: 50 });
+      if (all.total !== before + 1) throw new Error(`合计总数应 +1: ${all.total} != ${before + 1}`);
+      const probe = all.checkins.find((c) => c.note === '广场探针打卡');
+      if (!probe || probe.kind !== 'solo' || probe.nickname !== userBRow.nickname)
+        throw new Error('单人探针未出现在合并流或字段缺失');
+      if (!all.checkins.some((c) => c.kind === 'duo')) throw new Error('双人打卡未出现在合并流');
+      for (let i = 1; i < all.checkins.length; i++) {
+        if (all.checkins[i - 1].submitted_at < all.checkins[i].submitted_at)
+          throw new Error('未按时间倒序');
+      }
+      const duoOnly = galleryService.listGallery({ scope: 'duo', limit: 50 });
+      if (!duoOnly.checkins.every((c) => c.kind === 'duo')) throw new Error('duo 筛选混入单人记录');
+      if (duoOnly.checkins.length < 2) throw new Error('duo 筛选至少应含探针双方 2 条');
+      const soloOnly = galleryService.listGallery({ scope: 'solo', limit: 50 });
+      if (soloOnly.total + duoOnly.total !== all.total) throw new Error('scope 拆分总数与全部不一致');
+    });
+    await check('gallery.service galleryStats（累计 / 今日 / 今日参与人数）', () => {
+      const s = galleryService.galleryStats();
+      const n = db
+        .prepare(`SELECT (SELECT COUNT(*) FROM checkins) + (SELECT COUNT(*) FROM duo_checkins) AS n`)
+        .get().n;
+      if (s.total !== n) throw new Error(`累计不一致: ${s.total} != ${n}`);
+      // 探针当天写入：单人 A 2 条 + B 2 条（含广场探针）+ 双人 A/B 各 1 → 今日 ≥ 6、参与 ≥ 2 人
+      if (s.today < 6) throw new Error('今日打卡计数偏低: ' + s.today);
+      if (s.today_users < 2) throw new Error('今日参与人数应 ≥ 2');
     });
 
     // --- Day 8 收尾：解绑（搭档通知 + 队伍归档） ---

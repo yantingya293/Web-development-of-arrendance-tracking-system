@@ -1942,3 +1942,48 @@ button.upload-zone:disabled {
   }
 }
 
+/* ===== Day 12：全员打卡广场 ===== */
+
+/* 打卡卡片的用户行：头像 + 文本（叠加来源 / 逾期标签） */
+.gallery-item-user {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin: 0 0 var(--sp-1);
+}
+
+.gallery-item-user .avatar-sm {
+  flex-shrink: 0;
+}
+
+.gallery-item-text {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-1);
+  font-size: var(--fs-md);
+}
+
+.gallery-item-text .tag {
+  margin-left: var(--sp-1);
+}
+
+.gallery-item-time {
+  margin: 0 0 var(--sp-1);
+  font-size: var(--fs-xs);
+}
+
+.gallery-item .history-item-note {
+  margin: 0;
+  font-size: var(--fs-sm);
+  color: var(--text);
+}
+
+/* ---- Day 12 响应式：卡片纵排（照片换行到下方） ---- */
+@media (max-width: 600px) {
+  .gallery-item {
+    flex-direction: column;
+  }
+}
+
+

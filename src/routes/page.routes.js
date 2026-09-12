@@ -8,7 +8,7 @@
  *   GET /me        个人中心（登录可见，Day 7 接入打卡统计，Day 13 / 14 继续完善）
  *   GET /admin     管理员后台占位页（仅 admin，Day 14 细化）
  *   GET /duo       双人协作广场（Day 8：组队绑定；Day 9：共同任务；Day 10：双方打卡）
- *   GET /gallery   全员打卡广场占位页（Day 12 实现）
+ *   GET /gallery   全员打卡广场（Day 12 实现：全站单人 + 双人打卡成果展示）
  *   GET /history   历史记录页（Day 7 实现，登录可见）
  */
 const express = require('express');
@@ -57,13 +57,9 @@ router.get('/duo', (req, res) => {
   res.render('duo', { title: '双人协作广场', active: 'duo' });
 });
 
-router.get('/gallery', (req, res) => {
-  res.render('coming-soon', {
-    title: '全员打卡广场',
-    active: 'gallery',
-    heading: '全员打卡广场',
-    message: '单人 / 双人公开成果展示与筛选将在 Day 12 上线。',
-  });
+// 全员打卡广场（Day 12）：全站打卡成果展示与筛选（登录可见，未登录跳登录页）
+router.get('/gallery', requireAuthPage, (req, res) => {
+  res.render('gallery', { title: '全员打卡广场', active: 'gallery' });
 });
 
 // 历史记录（Day 7）：打卡统计 + 日期分组列表 + 分类 / 日期筛选（登录可见）

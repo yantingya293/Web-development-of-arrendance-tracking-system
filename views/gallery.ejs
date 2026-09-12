@@ -1,0 +1,53 @@
+<%- include('partials/header', { title, active: 'gallery' }) %>
+
+  <section class="hero hero-compact">
+    <div>
+      <h1>全员打卡广场</h1>
+      <p class="sub">看看大家今天都学了什么 · 单人与双人成果一起展示</p>
+    </div>
+  </section>
+
+  <!-- 广场统计（Day 12）：全站累计 / 今日打卡 / 今日参与人数 -->
+  <section class="stats-row" id="galleryStatsRow" aria-label="广场统计">
+    <div class="card stat-card">
+      <p class="stat-value" id="gStatTotal">–</p>
+      <p class="stat-label">全站累计打卡</p>
+    </div>
+    <div class="card stat-card">
+      <p class="stat-value" id="gStatToday">–</p>
+      <p class="stat-label">今日打卡</p>
+    </div>
+    <div class="card stat-card">
+      <p class="stat-value" id="gStatUsers">–</p>
+      <p class="stat-label">今日参与人数</p>
+    </div>
+  </section>
+
+  <!-- 打卡流：来源筛选 + 分页加载 -->
+  <section class="card section-card">
+    <div class="section-head">
+      <div class="section-title">
+        <h2>最新成果</h2>
+        <span class="tag">单人 + 双人</span>
+      </div>
+    </div>
+    <div class="section-body">
+      <div class="task-tabs" id="galleryTabs" role="group" aria-label="打卡来源筛选">
+        <button type="button" class="tab active" data-scope="">全部</button>
+        <button type="button" class="tab" data-scope="solo">单人打卡</button>
+        <button type="button" class="tab" data-scope="duo">双人打卡</button>
+      </div>
+
+      <div id="galleryListBody">
+        <%- include('partials/components/loading', { text: '正在加载打卡广场…' }) %>
+      </div>
+
+      <div class="history-more">
+        <button type="button" class="btn btn-outline btn-block" id="galleryMoreBtn" hidden>加载更多</button>
+      </div>
+    </div>
+  </section>
+
+  <script src="/js/gallery.js" defer></script>
+
+<%- include('partials/footer') %>

@@ -13,6 +13,7 @@ const teamRoutes = require('./src/routes/team.routes');
 const duoTaskRoutes = require('./src/routes/duoTask.routes');
 const duoCheckinRoutes = require('./src/routes/duoCheckin.routes');
 const notificationRoutes = require('./src/routes/notification.routes');
+const galleryRoutes = require('./src/routes/gallery.routes');
 const pageRoutes = require('./src/routes/page.routes');
 
 // Day 2：启动即建库 + 补种（幂等）
@@ -95,6 +96,7 @@ app.use('/api/team', teamRoutes); // Day 8：双人组队（邀请 / 接受 / �
 app.use('/api/duo-tasks', duoTaskRoutes); // Day 9：双人共同任务 CRUD
 app.use('/api/duo-checkins', duoCheckinRoutes); // Day 10：双人打卡（每日一次 + 搭档通知）
 app.use('/api/notifications', notificationRoutes); // Day 10：站内通知（协作动态）
+app.use('/api/gallery', galleryRoutes); // Day 12：全员打卡广场（成果展示）
 app.use('/', pageRoutes);
 
 // 404 兜底
