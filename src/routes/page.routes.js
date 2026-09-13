@@ -16,12 +16,25 @@ const { requireAuthPage, requireAdminPage } = require('../middleware/auth');
 
 const router = express.Router();
 
-/** 登录后回跳地址：仅接受本站相对路径。
-    拒绝 // 与 /\ 开头（浏览器视作协议相对地址跳外站，防开放重定向钓鱼）。 */
+/** 登录后回跳地址：仅接受本站相对路径（防开放重定向钓鱼）。
+    1. 先剥控制字符（编码后的换行 / 空字节可干扰校验与后续跳转）；
+    2. 拒绝 // 与 /\ 开头（浏览器视作协议相对地址跳外站）；
+    3. 最后用 URL 解析器兜底：以假想本站为基准解析，解析结果若带出外部
+       origin（任何反斜杠 / 编码变体）一律回首页，不做字符串 prefix 判断。 */
 function safeNext(raw) {
-  if (typeof raw !== 'string' || !raw.startsWith('/')) return '/';
-  if (raw.startsWith('//') || raw.startsWith('/\\')) return '/';
-  return raw;
+  if (typeof raw !== 'string') return '/';
+  const cleaned = raw.replace(/[\u0000-\u001f\u007f]/g, '');
+  if (!cleaned.startsWith('/')) return '/';
+  if (cleaned.startsWith('//') || cleaned.startsWith('/\\')) return '/';
+  const BASE = 'http://checkin.internal';
+  let resolved;
+  try {
+    resolved = new URL(cleaned, BASE);
+  } catch (_) {
+    return '/';
+  }
+  if (resolved.origin !== BASE) return '/';
+  return cleaned;
 }
 
 router.get('/', (req, res) => {

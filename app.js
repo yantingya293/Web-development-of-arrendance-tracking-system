@@ -26,10 +26,26 @@ const PORT = process.env.PORT || 3000;
 
 // Day 3 决策（安全加固后）：会话密钥绝不回退到源码硬编码值——
 // 源码里的默认密钥等于公开密钥，任何人都能用它伪造任意用户（含管理员）的会话 Cookie。
-//   * 已设置 SESSION_SECRET        → 使用之（多实例 / 重启后会话保持）
+//   * 已设置 SESSION_SECRET（≥32 字符且非已知占位值） → 使用之（多实例 / 重启后会话保持）
 //   * 生产环境未设置               → 拒绝启动
 //   * 开发环境未设置               → 每次启动生成随机临时密钥（不可伪造；重启后会话失效，开发可接受）
+// 显式设置了占位值（照抄示例文件）或过短密钥时一律拒绝启动——已知 / 可猜密钥等于会话完全失守，
+// 不区分开发与生产（开发不设置即可获得随机临时密钥，无需占位值）。
 const SESSION_SECRET = process.env.SESSION_SECRET;
+const KNOWN_PLACEHOLDER_SECRETS = new Set([
+  'please_change_me_to_a_random_long_string', // .env.example 历史占位值
+  'dev-only-secret-please-change-me', // 历史版本硬编码回退值
+]);
+if (
+  SESSION_SECRET &&
+  (KNOWN_PLACEHOLDER_SECRETS.has(SESSION_SECRET) || SESSION_SECRET.length < 32)
+) {
+  console.error(
+    '[fatal] SESSION_SECRET 为已知占位值或长度不足 32 字符，拒绝启动。' +
+      '请设置为 ≥32 字符的随机字符串（如 openssl rand -hex 32 的输出）。'
+  );
+  process.exit(1);
+}
 if (!SESSION_SECRET && process.env.NODE_ENV === 'production') {
   console.error('[fatal] 生产环境必须设置 SESSION_SECRET（用于会话签名），拒绝启动。');
   process.exit(1);

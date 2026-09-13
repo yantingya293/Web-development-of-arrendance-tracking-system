@@ -3,22 +3,36 @@
  *
  * 模块说明：
  *   seedIfEmpty()  仅当 users 表为空时写入种子数据，幂等可重复调用：
- *                    1. 管理员账号 admin（密码可用环境变量 ADMIN_PASSWORD 覆盖，默认 admin123；
- *                       上线后请尽快在「个人中心 → 修改密码」改掉默认密码）
+ *                    1. 管理员账号 admin（密码用 ADMIN_PASSWORD 设置；生产未设置则生成一次性
+ *                       随机密码打印一次；开发未设置用 admin123，上线前务必修改）
  *                    2. 几个示例单人任务（覆盖 daily / weekly / question 三类分类
  *                       与未开始 / 进行中 / 已逾期三种状态，Day 5 起带 category 字段）
  *   直接运行本文件可手动补种：node src/db/seed.js
  */
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 const { getDb } = require('./db');
 
-/** 默认管理员账号（密码可被 ADMIN_PASSWORD 环境变量覆盖） */
+/** 管理员账号主体（密码运行时解析，见 resolveAdminPassword） */
 const ADMIN = {
   nickname: '管理员',
   account: 'admin',
-  password: process.env.ADMIN_PASSWORD || 'admin123',
   role: 'admin',
 };
+
+/** 解析种子管理员密码（安全加固后不再有无条件回退口令）：
+ *   * 设置了 ADMIN_PASSWORD → 使用之；
+ *   * 生产环境未设置        → 每次生成一次性随机密码并打印一次（不存在源码可查的默认口令）；
+ *   * 开发环境未设置        → 使用 admin123（仅本地开发便利，warn 提醒）。 */
+function resolveAdminPassword() {
+  if (process.env.ADMIN_PASSWORD) {
+    return { password: process.env.ADMIN_PASSWORD, generated: false };
+  }
+  if (process.env.NODE_ENV === 'production') {
+    return { password: crypto.randomBytes(16).toString('hex'), generated: true };
+  }
+  return { password: 'admin123', generated: false };
+}
 
 function buildSeedRows(now) {
   const daysFromNow = (n, h = '23:59:59') => {
@@ -69,7 +83,8 @@ function seedIfEmpty() {
   if (userCount > 0) return false;
 
   const now = new Date();
-  const hash = bcrypt.hashSync(ADMIN.password, 10);
+  const { password: adminPassword, generated: generatedPassword } = resolveAdminPassword();
+  const hash = bcrypt.hashSync(adminPassword, 10);
 
   const seed = db.transaction(() => {
     db.prepare(
@@ -85,9 +100,14 @@ function seedIfEmpty() {
   });
   seed();
 
-  if (!process.env.ADMIN_PASSWORD) {
+  if (generatedPassword) {
+    // 一次性随机口令只打印这一次，须立即保存
+    console.log(
+      `[admin] 未设置 ADMIN_PASSWORD，已为种子管理员生成一次性随机密码（仅打印这一次，请立即保存并登录修改）：${adminPassword}`
+    );
+  } else if (!process.env.ADMIN_PASSWORD) {
     console.warn(
-      '[warn] 管理员账号使用了默认密码 admin123，请上线后立即登录，在「个人中心 → 修改密码」改掉。'
+      '[warn] 开发环境管理员账号使用了默认密码 admin123，请上线前设置 ADMIN_PASSWORD 或在「个人中心 → 修改密码」改掉。'
     );
   }
   return true;

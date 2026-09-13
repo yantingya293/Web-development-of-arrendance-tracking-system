@@ -118,6 +118,9 @@ function createInvite(user, account) {
 
 function respondInvite(user, inviteId, accept) {
   const db = getDb();
+  // 注意：作废标记必须随事务提交生效。不能在事务内 throw——异常会回滚刚写入的
+  // markReadById，导致「已声明作废」的邀请仍占着邀请人的唯一发出名额、且仍可被接受。
+  // 故失败路径在事务内标记 + 返回错误描述，事务提交后再抛出。
   const run = db.transaction(() => {
     const row = db
       .prepare(
@@ -125,7 +128,7 @@ function respondInvite(user, inviteId, accept) {
          WHERE id = ? AND user_id = ? AND type = 'invite' AND read_at IS NULL`
       )
       .get(inviteId, user.id);
-    if (!row) throw httpError(404, '邀请不存在或已处理');
+    if (!row) return { error: [404, '邀请不存在或已处理'] };
 
     let payload = {};
     try {
@@ -137,17 +140,17 @@ function respondInvite(user, inviteId, accept) {
       return { declined: true };
     }
 
-    // 接受前二次校验：双方都未组队、邀请人仍存在（并发与过期兜底）
+    // 接受前二次校验：双方都未组队、邀请人仍存在（并发与过期兜底）；不成立则作废该邀请
     if (getActiveTeamForUser(user.id)) {
       markReadById(user.id, inviteId);
-      throw httpError(409, '你已绑定搭档，该邀请已作废');
+      return { error: [409, '你已绑定搭档，该邀请已作废'] };
     }
     const fromUser = payload.fromId
       ? db.prepare('SELECT * FROM users WHERE id = ?').get(payload.fromId)
       : null;
     if (!fromUser || getActiveTeamForUser(fromUser.id)) {
       markReadById(user.id, inviteId);
-      throw httpError(409, '对方已绑定搭档或账号已注销，该邀请已作废');
+      return { error: [409, '对方已绑定搭档或账号已注销，该邀请已作废'] };
     }
 
     const info = db
@@ -162,6 +165,7 @@ function respondInvite(user, inviteId, accept) {
   });
 
   const result = run();
+  if (result.error) throw httpError(result.error[0], result.error[1]);
   return result.declined ? { declined: true } : getTeamView(user.id);
 }
 
