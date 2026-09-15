@@ -25,6 +25,13 @@
     return escapeHtml(String(u.nickname || '?').slice(0, 1));
   };
 
+  /* Day 16：窄屏导航横向滑动时，保证当前页对应的导航项滚入可见区域
+     （inline 居中只滚动导航容器；block nearest 避免牵动页面纵向滚动） */
+  var activeNav = document.querySelector('.nav a.active');
+  if (activeNav && activeNav.scrollIntoView) {
+    activeNav.scrollIntoView({ inline: 'center', block: 'nearest' });
+  }
+
   /* Toast：window.showToast(message, type, duration)
      type: info（默认）| success | error */
   window.showToast = function (message, type, duration) {

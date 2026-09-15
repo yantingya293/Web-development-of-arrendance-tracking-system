@@ -89,6 +89,11 @@ body {
   display: flex;
   gap: 4px;
   overflow-x: auto;
+  scrollbar-width: none; /* 移动端导航横向滑动，但不外露滚动条 */
+}
+
+.nav::-webkit-scrollbar {
+  display: none;
 }
 
 .nav a {
@@ -170,6 +175,7 @@ body {
   line-height: 1.5;
   cursor: pointer;
   text-decoration: none;
+  white-space: nowrap; /* 窄屏下按钮文案不竖排折行（登录 / +新建任务 等） */
   transition: background 0.15s, color 0.15s, border-color 0.15s;
 }
 
@@ -837,6 +843,26 @@ body {
   }
 }
 
+/* ---- Day 16：≤600 顶栏两行化 —— 品牌与用户区一行，导航独占一行横向滑动，
+        避免窄屏下导航 / 按钮互相挤压截断；导航区域吃满整行便于触屏滑动 ---- */
+@media (max-width: 600px) {
+  .topbar {
+    flex-wrap: wrap;
+    height: auto;
+    min-height: 52px;
+    padding: 8px 12px 4px;
+  }
+  .topbar-right {
+    margin-left: auto;
+  }
+  .nav {
+    order: 3;
+    flex-basis: 100%;
+    margin: 0 -12px;
+    padding: 2px 12px 6px;
+  }
+}
+
 @media (max-width: 480px) {
   .container {
     padding: var(--sp-4) 14px var(--sp-6);
@@ -1492,6 +1518,16 @@ button.upload-zone:disabled {
 
   .stat-value {
     font-size: var(--fs-xl);
+  }
+
+  /* Day 16：窄屏统计卡收窄内边距并缩小文案，长标签（全站累计打卡）两行内放下不溢出 */
+  .stat-card {
+    padding: var(--sp-3) var(--sp-2);
+  }
+
+  .stat-label {
+    font-size: var(--fs-xs);
+    line-height: 1.35;
   }
 
   .history-item {
@@ -2325,6 +2361,7 @@ button.upload-zone:disabled {
 
 .data-table {
   width: 100%;
+  min-width: 720px; /* 窄屏下由 .table-wrap 内部横向滚动，列宽不被压缩到不可读 */
   border-collapse: collapse;
   font-size: var(--fs-sm);
   white-space: nowrap;
