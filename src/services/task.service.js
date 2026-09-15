@@ -18,6 +18,7 @@
  *     普通用户对其只读（打卡入口在 Day 6 接入）
  */
 const { getDb } = require('../db/db');
+const { removeStoredFiles } = require('../middleware/upload');
 
 const CATEGORIES = ['daily', 'weekly', 'question'];
 const USER_SETTABLE_STATUS = ['unstarted', 'in_progress', 'completed'];
@@ -164,9 +165,25 @@ function updateSoloTaskStatus(user, taskId, status) {
   return findTaskById(row.id);
 }
 
+/** 收集任务下所有打卡照片的相对路径（删除任务时清理磁盘文件用） */
+function collectTaskPhotoPaths(taskId) {
+  return getDb()
+    .prepare('SELECT image_paths FROM checkins WHERE task_id = ?')
+    .all(taskId)
+    .flatMap((r) => {
+      try {
+        return JSON.parse(r.image_paths || '[]');
+      } catch (_) {
+        return [];
+      }
+    });
+}
+
 function deleteSoloTask(user, taskId) {
   const row = getManagedTask(user, taskId);
+  const photos = collectTaskPhotoPaths(row.id);
   getDb().prepare('DELETE FROM tasks WHERE id = ?').run(row.id);
+  removeStoredFiles(photos); // 打卡记录已级联删除，照片文件尽力而为清理（失败仅告警）
   return true;
 }
 
@@ -198,11 +215,13 @@ function createPublicTask(payload) {
   return findTaskById(info.lastInsertRowid);
 }
 
-/** 删除公共任务（其下打卡记录随外键级联删除） */
+/** 删除公共任务（其下打卡记录随外键级联删除，照片文件一并清理） */
 function deletePublicTask(taskId) {
   const row = findTaskById(taskId);
   if (!row || row.type !== 'solo' || row.owner_id !== null) throw httpError(404, '公共任务不存在');
+  const photos = collectTaskPhotoPaths(row.id);
   getDb().prepare('DELETE FROM tasks WHERE id = ?').run(row.id);
+  removeStoredFiles(photos);
   return true;
 }
 

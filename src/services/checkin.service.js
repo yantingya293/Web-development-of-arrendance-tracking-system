@@ -95,8 +95,12 @@ function createSoloCheckin(user, payload) {
       )
       .run(user.id, task.id, JSON.stringify(photos), note, isOverdue);
 
-    // 未开始的任务打卡后自动进入进行中（打卡 ≠ 完成，完成由用户显式标记）
-    if (task.status === 'unstarted') {
+    // 未开始的任务打卡后自动进入进行中（打卡 ≠ 完成，完成由用户显式标记）。
+    // 状态副作用仅限任务主人（个人任务）/ 管理员（公共任务）：普通用户打卡公共任务
+    // 只写入打卡记录，不得改变全员可见的任务状态（Day 15 安全加固）。
+    const mayTransition =
+      task.owner_id === null ? user.role === 'admin' : task.owner_id === user.id;
+    if (mayTransition && task.status === 'unstarted') {
       getDb().prepare(`UPDATE tasks SET status = 'in_progress' WHERE id = ?`).run(task.id);
     }
     return info.lastInsertRowid;

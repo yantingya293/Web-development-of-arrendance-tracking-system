@@ -11,6 +11,9 @@
   "engines": {
     "node": ">=20"
   },
+  "overrides": {
+    "qs": "^6.16.0"
+  },
   "dependencies": {
     "bcryptjs": "^2.4.3",
     "better-sqlite3": "^12.11.1",

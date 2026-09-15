@@ -14,12 +14,16 @@
  * Day 14：个人资料（昵称校验与更新 / 头像路径写入与清除，2 项）
  *          管理员后台（概览统计口径 / 用户搜索分页 / 公共任务 CRUD，3 项）
  * 安全加固：改密与会话作废 / 上传魔数校验（3 项，检查器支持 async）
+ * Day 15：安全加固（公共任务状态收权 / 回跳消毒 / 注册同形等时 / 删除清理照片×2 / 分页取整，6 项）
  *
  * 运行：node dbCheck.js
- * 说明：探针写入全部包在一个事务里并在结束时 ROLLBACK，不会污染数据文件。
+ * 说明：探针写入全部包在一个事务里并在结束时 ROLLBACK，不会污染数据文件
+ *       （Day 15 照片清理探针会真实创建/删除临时文件，但文件名以 __dbcheck_ 开头且用后即清）。
  */
 const { initDb, getDb } = require('./src/db/db');
 const { seedIfEmpty } = require('./src/db/seed');
+const fs = require('fs');
+const path = require('path');
 
 const results = [];
 async function check(name, fn) {
@@ -744,6 +748,131 @@ async function main() {
       if (!hasImageMagic(Buffer.from('89504e470d0a1a0a0000000d49484452', 'hex'))) throw new Error('PNG 魔数未通过');
       if (!hasImageMagic(Buffer.from('ffd8ffe000104a46494600', 'hex'))) throw new Error('JPEG 魔数未通过');
       if (hasImageMagic(Buffer.from('ffd9'))) throw new Error('过短内容不应通过');
+    });
+
+    // --- Day 15：安全加固（Strix 扫描遗留项落地；照片清理探针操作真实文件，其余数据仍随事务回滚） ---
+    const pageRoutes = require('./src/routes/page.routes');
+    const userService15 = require('./src/services/user.service');
+
+    await check('checkin.service 公共任务状态收权（普通用户打卡不推进，管理员推进）', () => {
+      const pid = db
+        .prepare(`INSERT INTO tasks (owner_id, type, title) VALUES (NULL, 'solo', '探针：状态收权公共任务')`)
+        .run().lastInsertRowid;
+      checkinService.createSoloCheckin(userB, {
+        taskId: pid,
+        note: '普通用户打卡',
+        photos: ['uploads/dbcheck-scope-u.jpg'],
+      });
+      const st1 = db.prepare(`SELECT status FROM tasks WHERE id = ?`).get(pid).status;
+      if (st1 !== 'unstarted') throw new Error('普通用户打卡公共任务不应推进状态，实际 ' + st1);
+      const adminRow = db.prepare(`SELECT id FROM users WHERE account = 'admin'`).get();
+      checkinService.createSoloCheckin(
+        { id: adminRow.id, role: 'admin' },
+        { taskId: pid, note: '管理员打卡', photos: ['uploads/dbcheck-scope-a.jpg'] }
+      );
+      const st2 = db.prepare(`SELECT status FROM tasks WHERE id = ?`).get(pid).status;
+      if (st2 !== 'in_progress') throw new Error('管理员打卡公共任务应推进为 in_progress，实际 ' + st2);
+    });
+
+    await check('page.routes safeNext 回跳消毒（协议相对 / 反斜杠 / 控制字符 / 正常路径）', () => {
+      const cases = [
+        ['//evil.com', '/'],
+        ['/\\evil.com', '/'],
+        ['//evil.com/path', '/'],
+        ['///x', '/'],
+        ['/history', '/history'],
+        ['/foo\r\nbar', '/foobar'],
+        ['/a?b=1&c=2', '/a?b=1&c=2'],
+      ];
+      for (const [raw, want] of cases) {
+        const got = pageRoutes.safeNext(raw);
+        if (got !== want) throw new Error(`safeNext(${JSON.stringify(raw)}) 应为 ${want}，实际 ${JSON.stringify(got)}`);
+      }
+    });
+
+    await check('user.service 重复注册 409 同形 + 等时（dummy bcrypt 生效）', async () => {
+      const payload = { nickname: '探针注册', account: 'dbcheck_reg15', password: 'passw0rd1' };
+      await userService15.registerUser(payload); // 首次注册成功
+      let dup1, dup2;
+      const t1 = Date.now();
+      try { await userService15.registerUser(payload); } catch (e) { dup1 = e; }
+      const dupMs = Date.now() - t1;
+      try { await userService15.registerUser(payload); } catch (e) { dup2 = e; }
+      if (!dup1 || dup1.status !== 409 || !dup2 || dup2.status !== 409) throw new Error('重复注册未按 409 拒绝');
+      if (dup1.message !== dup2.message || JSON.stringify(dup1.errors) !== JSON.stringify(dup2.errors))
+        throw new Error('重复注册两次响应不同形');
+      if (dupMs < 20) throw new Error(`等时处理未生效（重复注册仅耗时 ${dupMs}ms，应含 bcrypt 比较）`);
+    });
+
+    const uploadsDir = path.join(__dirname, 'public', 'uploads');
+    const waitUnlink = () => new Promise((r) => setTimeout(r, 150)); // removeStoredFile 为异步尽力而为
+    const sweepTemp = (...files) => {
+      for (const f of files) {
+        try { if (fs.existsSync(f)) fs.unlinkSync(f); } catch (_) { /* 探针自清理 */ }
+      }
+    };
+
+    await check('task.service 删除任务清理打卡照片（个人 + 公共任务，真实文件）', async () => {
+      const f1 = path.join(uploadsDir, 'dbcheck-del1.png');
+      const f2 = path.join(uploadsDir, 'dbcheck-del2.png');
+      fs.writeFileSync(f1, 'x');
+      fs.writeFileSync(f2, 'x');
+      try {
+        const t1 = taskService.createSoloTask(userAId, { title: '探针：删任务清照片' });
+        checkinService.createSoloCheckin(userA, { taskId: t1.id, note: '', photos: ['uploads/dbcheck-del1.png'] });
+        taskService.deleteSoloTask(userA, t1.id);
+        await waitUnlink();
+        if (fs.existsSync(f1)) throw new Error('个人任务照片未清理');
+
+        const t2 = db
+          .prepare(`INSERT INTO tasks (owner_id, type, title) VALUES (NULL, 'solo', '探针：删公共任务清照片')`)
+          .run().lastInsertRowid;
+        checkinService.createSoloCheckin(userB, { taskId: t2, note: '', photos: ['uploads/dbcheck-del2.png'] });
+        taskService.deletePublicTask(t2);
+        await waitUnlink();
+        if (fs.existsSync(f2)) throw new Error('公共任务照片未清理');
+      } finally {
+        sweepTemp(f1, f2);
+      }
+    });
+
+    await check('duoTask.service 删除共同任务清理打卡照片（真实文件）', async () => {
+      const f = path.join(uploadsDir, 'dbcheck-duo-del.png');
+      fs.writeFileSync(f, 'x');
+      try {
+        // 独立小队：直插两名新用户与一支 active 队伍，避免与 Day 8 探针的队伍状态互相干扰
+        const ua = db
+          .prepare(`INSERT INTO users (nickname, account, password_hash, role) VALUES ('探针队A','__dbcheck_ta__','h','user')`)
+          .run().lastInsertRowid;
+        const ub = db
+          .prepare(`INSERT INTO users (nickname, account, password_hash, role) VALUES ('探针队B','__dbcheck_tb__','h','user')`)
+          .run().lastInsertRowid;
+        db.prepare(`INSERT INTO teams (user_a, user_b) VALUES (?, ?)`).run(ua, ub);
+        const mkUser = (id, nickname, account) => ({ id, role: 'user', nickname, account });
+        const userA2 = mkUser(ua, '探针队A', '__dbcheck_ta__');
+        const dt = duoTaskService.createDuoTask(userA2, { title: '探针：删共同任务清照片' });
+        duoCheckinService.createDuoCheckin(userA2, {
+          duoTaskId: dt.id,
+          photos: ['uploads/dbcheck-duo-del.png'],
+        });
+        duoTaskService.deleteDuoTask(userA2, dt.id);
+        await waitUnlink();
+        if (fs.existsSync(f)) throw new Error('共同任务照片未清理');
+      } finally {
+        sweepTemp(f);
+      }
+    });
+
+    await check('分页参数取整钳制（gallery / notifications / admin users）', () => {
+      const galleryService15 = require('./src/services/gallery.service');
+      const g = galleryService15.listGallery({ limit: '1.7', offset: 'abc' });
+      if (!Array.isArray(g.checkins) || g.checkins.length > 1) throw new Error('gallery limit=1.7 未取整钳制');
+      const g2 = galleryService15.listGallery({ limit: 'abc' });
+      if (g2.checkins.length > 20) throw new Error('gallery 默认 limit 未生效');
+      const n = require('./src/services/notification.service').listMyNotifications(userAId, '1.9');
+      if (n.length > 1) throw new Error('notifications limit=1.9 未取整钳制');
+      const u = require('./src/services/admin.service').listUsers({ limit: '2.9' });
+      if (u.users.length > 2 || u.limit !== 2) throw new Error('admin users limit=2.9 未取整钳制');
     });
   } finally {
     db.exec('ROLLBACK'); // 所有探针数据不落盘

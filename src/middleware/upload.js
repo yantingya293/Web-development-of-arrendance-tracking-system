@@ -138,6 +138,11 @@ function removeStoredFile(relPath) {
   });
 }
 
+/** 批量删除库中记录的相对路径文件（删除任务 / 共同任务时清理其打卡照片，尽力而为） */
+function removeStoredFiles(relPaths) {
+  (Array.isArray(relPaths) ? relPaths : []).forEach(removeStoredFile);
+}
+
 /** multer 错误 → 友好 JSON 片段；不是 multer 错误返回 null（交给业务错误通道）。
  *  opts 可指定字段名与提示语义（头像复用同一套错误通道）。 */
 function multerErrorResponse(err, opts) {
@@ -169,6 +174,7 @@ module.exports = {
   cleanupUploadedPhotos,
   cleanupAvatarFile,
   removeStoredFile,
+  removeStoredFiles,
   multerErrorResponse,
   MAX_PHOTOS,
   MAX_AVATAR_SIZE,

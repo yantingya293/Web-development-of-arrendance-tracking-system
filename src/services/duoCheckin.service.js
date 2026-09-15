@@ -95,7 +95,8 @@ function createDuoCheckin(user, payload) {
       )
       .run(task.id, user.id, JSON.stringify(photos), note, today);
 
-    // 未开始的任务打卡后自动进入进行中（完成由成员显式标记）
+    // 未开始的任务打卡后自动进入进行中（完成由成员显式标记）。
+    // 与单人打卡不同：共同任务由队伍双方共有，任一成员打卡都可推进状态（Day 15 复核确认）。
     if (task.status === 'unstarted') {
       getDb().prepare(`UPDATE duo_tasks SET status = 'in_progress' WHERE id = ?`).run(task.id);
     }

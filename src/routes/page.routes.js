@@ -80,4 +80,4 @@ router.get('/history', requireAuthPage, (req, res) => {
   res.render('history', { title: '历史记录', active: 'history' });
 });
 
-module.exports = router;
+module.exports = Object.assign(router, { safeNext });

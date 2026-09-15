@@ -52,8 +52,9 @@ function withParsedImages(row) {
  * @returns {{ checkins: Array, total: number }}  total 为符合筛选条件的总条数
  */
 function listGallery(query = {}) {
-  const limit = Math.min(Math.max(Number(query.limit) || DEFAULT_LIMIT, 1), MAX_LIMIT);
-  const offset = Math.max(Number(query.offset) || 0, 0);
+  // 取整钳制：查询串里的 1.7 / 'abc' / 负数等一律归一到合法整数（LIMIT 非整数会 500）
+  const limit = Math.min(Math.max(Math.trunc(Number(query.limit)) || DEFAULT_LIMIT, 1), MAX_LIMIT);
+  const offset = Math.max(Math.trunc(Number(query.offset)) || 0, 0);
   const scope = ['solo', 'duo'].includes(query.scope) ? query.scope : null;
 
   const where = scope ? 'WHERE kind = ?' : '';

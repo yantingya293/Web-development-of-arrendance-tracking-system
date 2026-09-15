@@ -19,6 +19,7 @@
  */
 const { getDb } = require('../db/db');
 const { normalizeDeadline } = require('./task.service');
+const { removeStoredFiles } = require('../middleware/upload');
 
 const USER_SETTABLE_STATUS = ['unstarted', 'in_progress', 'completed'];
 const MAX_DIVISION_LEN = 100;
@@ -186,7 +187,18 @@ function updateDuoTaskStatus(user, taskId, status) {
 
 function deleteDuoTask(user, taskId) {
   const { row } = getTeamDuoTask(user, taskId);
+  const photos = getDb()
+    .prepare('SELECT image_paths FROM duo_checkins WHERE duo_task_id = ?')
+    .all(row.id)
+    .flatMap((r) => {
+      try {
+        return JSON.parse(r.image_paths || '[]');
+      } catch (_) {
+        return [];
+      }
+    });
   getDb().prepare('DELETE FROM duo_tasks WHERE id = ?').run(row.id);
+  removeStoredFiles(photos); // 打卡记录已级联删除，照片文件尽力而为清理
   return true;
 }
 

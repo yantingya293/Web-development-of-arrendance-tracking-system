@@ -22,11 +22,17 @@
  *   * bcrypt 用异步接口（compare/hash）：同步版会阻塞事件循环，暴破请求可借此打满 CPU
  */
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 const { getDb } = require('../db/db');
 
 const ACCOUNT_RE = /^[A-Za-z0-9_]{3,24}$/;
 const PASSWORD_RE = /^(?=.*[A-Za-z])(?=.*\d)\S{6,32}$/;
 const NICKNAME_MAX = 20;
+
+/** 预置 bcrypt 哈希（随机口令，cost 10）：重复账号路径做等时处理，
+ *  使「账号已存在」与正常注册耗时相当，避免凭响应里有无 bcrypt 耗时
+ *  探测账号是否已注册（Day 15 安全加固，时序侧信道收口）。 */
+const DUMMY_PASSWORD_HASH = bcrypt.hashSync(crypto.randomBytes(32).toString('hex'), 10);
 
 function httpError(status, message, errors) {
   const err = new Error(message);
@@ -64,13 +70,25 @@ async function registerUser({ nickname, account, password }) {
   if (Object.keys(errors).length) throw httpError(400, '表单校验未通过', errors);
 
   const db = getDb();
-  if (db.prepare('SELECT id FROM users WHERE account = ?').get(acc))
+  if (db.prepare('SELECT id FROM users WHERE account = ?').get(acc)) {
+    // 等时处理后再返回 409（见 DUMMY_PASSWORD_HASH）；并发撞唯一索引的竞态
+    // 走下方 catch，两条路径的响应完全同形，封掉枚举之外的时序/并发 oracle
+    await bcrypt.compare(String(password), DUMMY_PASSWORD_HASH);
     throw httpError(409, '该账号已被注册', { account: '该账号已被注册' });
+  }
 
   const hash = await bcrypt.hash(String(password), 10);
-  const info = db
-    .prepare('INSERT INTO users (nickname, account, password_hash) VALUES (?, ?, ?)')
-    .run(name, acc, hash);
+  let info;
+  try {
+    info = db
+      .prepare('INSERT INTO users (nickname, account, password_hash) VALUES (?, ?, ?)')
+      .run(name, acc, hash);
+  } catch (err) {
+    if (String(err.code || '').startsWith('SQLITE_CONSTRAINT')) {
+      throw httpError(409, '该账号已被注册', { account: '该账号已被注册' });
+    }
+    throw err;
+  }
 
   return findPublicById(info.lastInsertRowid);
 }

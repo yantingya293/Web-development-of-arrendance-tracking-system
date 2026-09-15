@@ -84,8 +84,9 @@ function overview() {
  */
 function listUsers({ q, limit, offset } = {}) {
   const db = getDb();
-  const lim = Math.min(Math.max(Number(limit) || DEFAULT_LIMIT, 1), MAX_LIMIT);
-  const off = Math.max(Number(offset) || 0, 0);
+  // 取整钳制：非整数（如 1.7）进 LIMIT/OFFSET 会让 SQLite 报错
+  const lim = Math.min(Math.max(Math.trunc(Number(limit)) || DEFAULT_LIMIT, 1), MAX_LIMIT);
+  const off = Math.max(Math.trunc(Number(offset)) || 0, 0);
   const kw = String(q == null ? '' : q).trim();
 
   const whereSql = kw ? 'WHERE (u.nickname LIKE ? OR u.account LIKE ?)' : '';

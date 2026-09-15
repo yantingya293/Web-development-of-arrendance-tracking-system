@@ -36,6 +36,8 @@ function withParsedPayload(row) {
 }
 
 function listMyNotifications(userId, limit = 10) {
+  // 取整钳制：非整数（如 1.9）进 LIMIT 会让 SQLite 报错
+  const lim = Math.min(Math.max(Math.trunc(Number(limit)) || 10, 1), 50);
   const rows = getDb()
     .prepare(
       `SELECT * FROM notifications
@@ -43,7 +45,7 @@ function listMyNotifications(userId, limit = 10) {
        ORDER BY created_at DESC, id DESC
        LIMIT ?`
     )
-    .all(userId, Math.min(Math.max(Number(limit) || 10, 1), 50));
+    .all(userId, lim);
   return rows.map(withParsedPayload);
 }
 
