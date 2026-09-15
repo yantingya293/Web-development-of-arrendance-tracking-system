@@ -170,11 +170,50 @@ function deleteSoloTask(user, taskId) {
   return true;
 }
 
+/* ---------- Day 14：公共任务管理（供管理员后台调用） ---------- */
+
+/** 公共任务列表（owner_id 为 NULL，全员可见可打卡），读取前先扫一遍逾期 */
+function listPublicTasks() {
+  sweepOverdue();
+  return getDb()
+    .prepare(
+      `SELECT * FROM tasks
+       WHERE type = 'solo' AND owner_id IS NULL
+       ORDER BY id DESC`
+    )
+    .all();
+}
+
+/** 管理员发布公共任务：复用单人任务的校验与截止归一化，owner_id 固定 NULL */
+function createPublicTask(payload) {
+  const { errors, value } = validateTaskPayload(payload);
+  if (Object.keys(errors).length) throw httpError(400, '表单校验未通过', errors);
+
+  const info = getDb()
+    .prepare(
+      `INSERT INTO tasks (owner_id, type, category, title, description, deadline)
+       VALUES (NULL, 'solo', @category, @title, @description, @deadline)`
+    )
+    .run(value);
+  return findTaskById(info.lastInsertRowid);
+}
+
+/** 删除公共任务（其下打卡记录随外键级联删除） */
+function deletePublicTask(taskId) {
+  const row = findTaskById(taskId);
+  if (!row || row.type !== 'solo' || row.owner_id !== null) throw httpError(404, '公共任务不存在');
+  getDb().prepare('DELETE FROM tasks WHERE id = ?').run(row.id);
+  return true;
+}
+
 module.exports = {
   listSoloTasks,
   createSoloTask,
   updateSoloTask,
   updateSoloTaskStatus,
   deleteSoloTask,
+  listPublicTasks,
+  createPublicTask,
+  deletePublicTask,
   normalizeDeadline,
 };

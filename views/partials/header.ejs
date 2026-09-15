@@ -21,7 +21,7 @@
         <div class="user-menu">
           <button type="button" id="userMenuBtn" class="user-menu-btn"
                   aria-haspopup="true" aria-expanded="false" aria-controls="userMenuList">
-            <span class="avatar-sm" aria-hidden="true"><%= currentUser.nickname.slice(0, 1) %></span>
+            <span class="avatar-sm" aria-hidden="true"><%- include('avatar', { user: currentUser }) %></span>
             <span class="user-menu-name"><%= currentUser.nickname %></span>
             <span class="caret" aria-hidden="true">▾</span>
           </button>

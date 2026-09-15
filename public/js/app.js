@@ -1,12 +1,29 @@
 /* 全站公共脚本
    Day 3：顶栏用户区登出
    Day 4：通用组件交互（用户菜单 / Toast / Loading）
-   Day 7：首页「实时打卡动态」接入 /api/checkins（登录用户本人最近 10 条；全员广场 Day 12 上线） */
+   Day 7：首页「实时打卡动态」接入 /api/checkins（登录用户本人最近 10 条；全员广场 Day 12 上线）
+   Day 14：全局头像渲染工具 window.avatarInner（有头像出图，否则回落昵称首字） */
 (function () {
   'use strict';
 
   var toastContainer = document.getElementById('toastContainer');
   var toastTemplate = document.getElementById('toastTemplate');
+
+  /** HTML 转义（属性与文本通用） */
+  function escapeHtml(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+  window.escapeHtml = escapeHtml;
+
+  /* 头像内容片段：有 avatar_path 出 <img>，否则回落昵称首字。
+     用法：el.innerHTML = window.avatarInner(user)（user 需含 nickname / avatar_path） */
+  window.avatarInner = function (user) {
+    var u = user || {};
+    if (u.avatar_path) return '<img src="/' + escapeHtml(u.avatar_path) + '" alt="" />';
+    return escapeHtml(String(u.nickname || '?').slice(0, 1));
+  };
 
   /* Toast：window.showToast(message, type, duration)
      type: info（默认）| success | error */

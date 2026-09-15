@@ -1,10 +1,13 @@
 /**
- * 用户服务层（Day 3；安全加固补改密 / 会话作废）
+ * 用户服务层（Day 3；安全加固补改密 / 会话作废；Day 14 补个人资料）
  *
  * 模块说明：
  *   registerUser({nickname, account, password})  校验 + 创建用户（自动登录由路由层写 session）
  *   authenticate(account, password)               登录校验，成功返回公开用户信息，失败返回 null（async）
  *   changePassword(user, oldPassword, newPassword) 修改密码并作废该用户全部旧会话（async）
+ *   updateProfile(user, {nickname})               修改昵称（Day 14）
+ *   updateAvatar(user, relPath)                   写入头像相对路径，返回被替换的旧路径（Day 14）
+ *   clearAvatar(user)                             撤销头像，返回被删除的旧路径（Day 14）
  *   getSessionUser(session)                       会话 → 当前用户（校验 iat 不早于 session_not_before）
  *   findPublicById(id)                            按主键查公开用户信息
  *   publicUser(row)                               剥离 password_hash 等敏感字段
@@ -23,6 +26,7 @@ const { getDb } = require('../db/db');
 
 const ACCOUNT_RE = /^[A-Za-z0-9_]{3,24}$/;
 const PASSWORD_RE = /^(?=.*[A-Za-z])(?=.*\d)\S{6,32}$/;
+const NICKNAME_MAX = 20;
 
 function httpError(status, message, errors) {
   const err = new Error(message);
@@ -41,7 +45,7 @@ function validateRegister({ nickname, account, password }) {
   const errors = {};
   const name = String(nickname || '').trim();
   if (!name) errors.nickname = '请填写昵称';
-  else if (name.length > 20) errors.nickname = '昵称不能超过 20 个字符';
+  else if (name.length > NICKNAME_MAX) errors.nickname = `昵称不能超过 ${NICKNAME_MAX} 个字符`;
 
   const acc = String(account || '').trim();
   if (!acc) errors.account = '请填写账号';
@@ -108,6 +112,47 @@ async function changePassword(user, oldPassword, newPassword) {
 }
 
 /**
+ * 修改昵称（Day 14）：与注册同一套昵称规则（1–20 字符，去首尾空格）。
+ * 昵称不参与鉴权，改完无需重建会话——getSessionUser 每次从库里读最新行。
+ */
+function updateProfile(user, { nickname }) {
+  const name = String(nickname == null ? '' : nickname).trim();
+  if (!name) throw httpError(400, '表单校验未通过', { nickname: '请填写昵称' });
+  if (name.length > NICKNAME_MAX) {
+    throw httpError(400, '表单校验未通过', { nickname: `昵称不能超过 ${NICKNAME_MAX} 个字符` });
+  }
+  const row = getDb().prepare('SELECT id FROM users WHERE id = ?').get(user.id);
+  if (!row) throw httpError(404, '用户不存在');
+
+  getDb().prepare('UPDATE users SET nickname = ? WHERE id = ?').run(name, user.id);
+  return findPublicById(user.id);
+}
+
+/**
+ * 写入头像相对路径（Day 14）。只接受 uploads/ 前缀，避免把任意路径塞进库中；
+ * 返回被替换的旧路径，供路由层清理旧文件（尽力而为，失败不影响结果）。
+ */
+function updateAvatar(user, relPath) {
+  const rel = String(relPath || '');
+  if (!rel.startsWith('uploads/')) throw httpError(400, '头像路径不合法');
+
+  const before = getDb().prepare('SELECT avatar_path FROM users WHERE id = ?').get(user.id);
+  if (!before) throw httpError(404, '用户不存在');
+
+  getDb().prepare('UPDATE users SET avatar_path = ? WHERE id = ?').run(rel, user.id);
+  return { previous: before.avatar_path || null, user: findPublicById(user.id) };
+}
+
+/** 撤销头像（Day 14）：置空 avatar_path，返回旧路径供路由层删除文件 */
+function clearAvatar(user) {
+  const before = getDb().prepare('SELECT avatar_path FROM users WHERE id = ?').get(user.id);
+  if (!before) throw httpError(404, '用户不存在');
+
+  getDb().prepare('UPDATE users SET avatar_path = NULL WHERE id = ?').run(user.id);
+  return { previous: before.avatar_path || null, user: findPublicById(user.id) };
+}
+
+/**
  * 会话 → 当前用户（app 装载中间件与 API / 页面守卫共用）。
  * 会话缺少 iat 或签发时间早于 users.session_not_before（改密时间）时视为已作废。
  */
@@ -132,8 +177,12 @@ module.exports = {
   registerUser,
   authenticate,
   changePassword,
+  updateProfile,
+  updateAvatar,
+  clearAvatar,
   getSessionUser,
   findPublicById,
   publicUser,
   PASSWORD_RE,
+  NICKNAME_MAX,
 };

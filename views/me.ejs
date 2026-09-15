@@ -2,13 +2,43 @@
 
   <section class="card profile-card">
     <div class="profile-head">
-      <div class="avatar"><%= currentUser.nickname.slice(0, 1) %></div>
-      <div>
+      <div class="avatar" id="profileAvatar"><%- include('partials/avatar', { user: currentUser }) %></div>
+      <div class="profile-head-main">
         <h2 class="profile-name">
-          <%= currentUser.nickname %>
+          <span id="profileNicknameText"><%= currentUser.nickname %></span>
           <% if (currentUser.role === 'admin') { %><span class="badge badge-admin">管理员</span><% } %>
         </h2>
         <p class="muted">账号：<%= currentUser.account %> · 注册于 <%= currentUser.created_at %></p>
+        <div class="avatar-actions">
+          <button type="button" class="btn btn-outline btn-sm" id="avatarPickBtn">更换头像</button>
+          <button type="button" class="btn btn-danger-ghost btn-sm" id="avatarRemoveBtn"
+                  <%= currentUser.avatar_path ? '' : 'hidden' %>>移除头像</button>
+          <input type="file" id="avatarInput" accept="image/jpeg,image/png" hidden />
+          <span class="muted avatar-hint">JPG / PNG，单张 ≤ 2MB</span>
+        </div>
+        <p class="field-error" data-error-for="avatar"></p>
+      </div>
+    </div>
+
+    <!-- Day 14：个人设置（昵称） -->
+    <div class="profile-block">
+      <h3 class="profile-subtitle">个人设置</h3>
+      <form id="profileForm" class="profile-form" novalidate>
+        <div class="form-group">
+          <label for="profileNickname">昵称</label>
+          <input id="profileNickname" name="nickname" type="text" maxlength="20"
+                 value="<%= currentUser.nickname %>" />
+          <p class="field-error" data-error-for="nickname"></p>
+        </div>
+        <button type="submit" class="btn btn-primary btn-sm">保存昵称</button>
+      </form>
+    </div>
+
+    <!-- Day 14：我的搭档（组队信息，取自 /api/team） -->
+    <div class="profile-block">
+      <h3 class="profile-subtitle">我的搭档</h3>
+      <div id="teamPanel">
+        <div class="loading" role="status"><span class="spinner" aria-hidden="true"></span><p class="loading-text">加载中…</p></div>
       </div>
     </div>
 
@@ -84,13 +114,6 @@
         <button type="submit" class="btn btn-primary">确认修改</button>
         <p class="muted form-hint">修改成功后，其他已登录设备（含可能被盗的会话）会全部退出。</p>
       </form>
-    </div>
-
-    <div class="profile-placeholder">
-      <p class="muted">个人中心继续建设中：</p>
-      <ul class="muted">
-        <li>组队信息 · 个人设置（头像 / 昵称修改）—— Day 14</li>
-      </ul>
     </div>
   </section>
 

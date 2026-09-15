@@ -1,0 +1,2 @@
+<%# 头像内容片段（Day 14）：有 avatar_path 出图片，否则回落昵称首字；末尾用 trim 标签去掉换行，避免撑出多余空白 -%>
+<% if (user && user.avatar_path) { %><img src="/<%= user.avatar_path %>" alt="" /><% } else { %><%= (user && user.nickname ? String(user.nickname) : '?').slice(0, 1) %><% } -%>

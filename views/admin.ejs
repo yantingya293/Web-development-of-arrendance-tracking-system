@@ -1,19 +1,77 @@
 <%- include('partials/header', { title, active: '' }) %>
 
   <section class="card admin-card">
-    <h2>管理员后台</h2>
-    <p class="muted">当前管理员：<strong><%= currentUser.nickname %></strong>（<%= currentUser.account %>）</p>
-
-    <div class="admin-placeholder">
-      <p>后台功能占位页，完整能力将在 Day 14 细化：</p>
-      <ul class="muted">
-        <li>全站统计（总用户数 / 单人完成率 / 双人协作完成率）</li>
-        <li>任务管理（单人 / 公共双人任务批量管理）</li>
-        <li>用户管理（用户列表 / 禁用）</li>
-      </ul>
+    <div class="admin-head">
+      <h2>管理员后台</h2>
+      <p class="muted">当前管理员：<strong><%= currentUser.nickname %></strong>（<%= currentUser.account %>）</p>
     </div>
 
-    <p><a href="/" class="btn btn-outline">返回首页</a></p>
+    <!-- Day 14：全站概览（GET /api/admin/overview） -->
+    <h3 class="profile-subtitle">全站概览</h3>
+    <div class="admin-stats" id="adminStats">
+      <div class="loading" role="status"><span class="spinner" aria-hidden="true"></span><p class="loading-text">加载中…</p></div>
+    </div>
+
+    <!-- Day 14：用户列表（GET /api/admin/users，支持搜索与分页） -->
+    <h3 class="profile-subtitle">用户列表</h3>
+    <form class="admin-search" id="userSearchForm" novalidate>
+      <input type="text" id="userSearchInput" maxlength="30" placeholder="按昵称或账号搜索…" />
+      <button type="submit" class="btn btn-outline btn-sm">搜索</button>
+      <button type="button" class="btn btn-outline btn-sm" id="userSearchReset">重置</button>
+    </form>
+    <div id="userTable">
+      <div class="loading" role="status"><span class="spinner" aria-hidden="true"></span><p class="loading-text">加载中…</p></div>
+    </div>
+    <div class="admin-pager" id="userPager"></div>
+
+    <!-- Day 14：公共任务管理（GET / POST / DELETE /api/admin/public-tasks） -->
+    <h3 class="profile-subtitle">公共任务管理</h3>
+    <p class="muted">公共任务对所有用户可见、可打卡，适合发布统一的每日练习或主题任务。</p>
+
+    <form id="publicTaskForm" class="public-task-form" novalidate>
+      <div class="form-group">
+        <label>任务分类</label>
+        <div class="radio-row" id="publicTaskCategoryRow">
+          <label class="radio-pill">
+            <input type="radio" name="category" value="daily" checked />每日任务
+          </label>
+          <label class="radio-pill">
+            <input type="radio" name="category" value="weekly" />每周重点
+          </label>
+          <label class="radio-pill">
+            <input type="radio" name="category" value="question" />学习问题
+          </label>
+        </div>
+        <p class="field-error" data-error-for="category"></p>
+      </div>
+      <div class="form-group">
+        <label for="publicTaskTitle">任务标题</label>
+        <input id="publicTaskTitle" name="title" type="text" maxlength="50"
+               placeholder="如：每日朗读英语 15 分钟" />
+        <p class="field-error" data-error-for="title"></p>
+      </div>
+      <div class="form-group">
+        <label for="publicTaskDesc">任务说明（可选）</label>
+        <textarea id="publicTaskDesc" name="description" maxlength="500"
+                  placeholder="补充要求、教材页码、验收标准…"></textarea>
+        <p class="field-error" data-error-for="description"></p>
+      </div>
+      <div class="form-group">
+        <label for="publicTaskDeadline">截止时间（可选）</label>
+        <input id="publicTaskDeadline" name="deadline" type="datetime-local" />
+        <p class="field-error" data-error-for="deadline"></p>
+      </div>
+      <div class="alert alert-error" id="publicTaskFormError" hidden></div>
+      <button type="submit" class="btn btn-primary btn-sm">发布公共任务</button>
+    </form>
+
+    <div id="publicTaskList" class="public-task-list">
+      <div class="loading" role="status"><span class="spinner" aria-hidden="true"></span><p class="loading-text">加载中…</p></div>
+    </div>
+
+    <p class="admin-foot"><a href="/" class="btn btn-outline">返回首页</a></p>
   </section>
+
+  <script src="/js/admin.js" defer></script>
 
 <%- include('partials/footer') %>

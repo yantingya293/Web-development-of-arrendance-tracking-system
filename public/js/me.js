@@ -1,8 +1,10 @@
-/* 个人中心脚本（Day 7 打卡统计与改密 / Day 13 学习数据看板）
+/* 个人中心脚本（Day 7 打卡统计与改密 / Day 13 学习数据看板 / Day 14 个人设置与组队信息）
    速览：GET /api/checkins/stats → 累计 / 今日 / 连续天数 + 近 7 天热度条（4 档着色）。
    看板：GET /api/stats/dashboard?month=YYYY-MM → 任务完成率（进度条）+
    分类分布（占比条）+ 月度打卡日历（单人 + 双人合并着色，可翻月，下月不超过当前月）。
-   改密：POST /api/auth/change-password（安全加固）。 */
+   改密：POST /api/auth/change-password（安全加固）。
+   资料：PATCH /api/auth/profile 改昵称；POST /api/auth/avatar 传头像；DELETE /api/auth/avatar 移除。
+   组队：GET /api/team → 我的搭档卡（未组队给出组队引导）。 */
 (function () {
   'use strict';
 
@@ -252,5 +254,168 @@
           btn.disabled = false;
         });
     });
+  }
+
+  /* ---------- Day 14：个人设置（昵称 / 头像） ---------- */
+
+  var profileAvatar = document.getElementById('profileAvatar');
+  var profileNicknameText = document.getElementById('profileNicknameText');
+  var profileForm = document.getElementById('profileForm');
+  var avatarPickBtn = document.getElementById('avatarPickBtn');
+  var avatarRemoveBtn = document.getElementById('avatarRemoveBtn');
+  var avatarInput = document.getElementById('avatarInput');
+
+  function setAvatarError(msg) {
+    var tip = document.querySelector('[data-error-for="avatar"]');
+    if (tip) tip.textContent = msg || '';
+  }
+
+  /** 头像变更后同步页头与顶栏（两处都换，避免用户以为没生效），并切换「移除」按钮可见性 */
+  function syncAvatar(user) {
+    if (profileAvatar) profileAvatar.innerHTML = window.avatarInner(user);
+    var topAvatar = document.querySelector('.user-menu-btn .avatar-sm');
+    if (topAvatar) topAvatar.innerHTML = window.avatarInner(user);
+    if (avatarRemoveBtn) avatarRemoveBtn.hidden = !user.avatar_path;
+  }
+
+  if (profileForm) {
+    profileForm.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var tip = profileForm.querySelector('[data-error-for="nickname"]');
+      if (tip) tip.textContent = '';
+      var btn = profileForm.querySelector('button[type="submit"]');
+      btn.disabled = true;
+      fetch('/api/auth/profile', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nickname: document.getElementById('profileNickname').value }),
+      })
+        .then(function (res) {
+          return res.json().then(function (b) { return { ok: res.ok, body: b }; });
+        })
+        .then(function (r) {
+          if (!r.ok) {
+            var errors = r.body.errors || {};
+            if (errors.nickname && tip) tip.textContent = errors.nickname;
+            window.showToast(r.body.message || '保存失败，请稍后再试', 'error');
+            return;
+          }
+          var u = r.body.user || {};
+          if (profileNicknameText) profileNicknameText.textContent = u.nickname || '';
+          var nameEl = document.querySelector('.user-menu-btn .user-menu-name');
+          if (nameEl) nameEl.textContent = u.nickname || '';
+          window.showToast(r.body.message || '昵称已更新', 'success');
+        })
+        .catch(function () {
+          window.showToast('网络异常，请稍后再试', 'error');
+        })
+        .then(function () {
+          btn.disabled = false;
+        });
+    });
+  }
+
+  if (avatarPickBtn && avatarInput) {
+    avatarPickBtn.addEventListener('click', function () {
+      avatarInput.click();
+    });
+    avatarInput.addEventListener('change', function () {
+      var file = avatarInput.files && avatarInput.files[0];
+      if (!file) return;
+      setAvatarError('');
+      if (file.size > 2 * 1024 * 1024) {
+        setAvatarError('单张头像不能超过 2MB');
+        avatarInput.value = '';
+        return;
+      }
+      var fd = new FormData();
+      fd.append('avatar', file);
+      avatarPickBtn.disabled = true;
+      fetch('/api/auth/avatar', { method: 'POST', body: fd })
+        .then(function (res) {
+          return res.json().then(function (b) { return { ok: res.ok, body: b }; });
+        })
+        .then(function (r) {
+          if (!r.ok) {
+            setAvatarError((r.body.errors || {}).avatar || '');
+            window.showToast(r.body.message || '头像上传失败', 'error');
+            return;
+          }
+          syncAvatar(r.body.user || {});
+          window.showToast(r.body.message || '头像已更新', 'success');
+        })
+        .catch(function () {
+          window.showToast('网络异常，请稍后再试', 'error');
+        })
+        .then(function () {
+          avatarPickBtn.disabled = false;
+          avatarInput.value = '';
+        });
+    });
+  }
+
+  if (avatarRemoveBtn) {
+    avatarRemoveBtn.addEventListener('click', function () {
+      if (!window.confirm('确定移除当前头像吗？')) return;
+      avatarRemoveBtn.disabled = true;
+      fetch('/api/auth/avatar', { method: 'DELETE' })
+        .then(function (res) {
+          return res.json().then(function (b) { return { ok: res.ok, body: b }; });
+        })
+        .then(function (r) {
+          if (!r.ok) {
+            window.showToast(r.body.message || '操作失败，请稍后再试', 'error');
+            return;
+          }
+          syncAvatar(r.body.user || {});
+          window.showToast(r.body.message || '头像已移除', 'success');
+        })
+        .catch(function () {
+          window.showToast('网络异常，请稍后再试', 'error');
+        })
+        .then(function () {
+          avatarRemoveBtn.disabled = false;
+        });
+    });
+  }
+
+  /* ---------- Day 14：我的搭档（组队信息，GET /api/team） ---------- */
+
+  var teamPanel = document.getElementById('teamPanel');
+
+  function renderTeamPanel(view) {
+    if (!teamPanel) return;
+    var t = view.team;
+    if (!t) {
+      teamPanel.innerHTML =
+        '<p class="muted">还没有绑定学习搭档。</p>' +
+        (view.outgoing
+          ? '<p class="muted">已向 <strong>' + window.escapeHtml(view.outgoing.to_nickname) + '</strong> 发出邀请，等待对方处理。</p>'
+          : '') +
+        '<p><a href="/duo" class="btn btn-outline btn-sm">去双人协作广场组队</a></p>';
+      return;
+    }
+    var p = t.partner || {};
+    teamPanel.innerHTML =
+      '<div class="partner-mini">' +
+        '<span class="avatar" aria-hidden="true">' + window.avatarInner(p) + '</span>' +
+        '<div class="partner-mini-main">' +
+          '<p class="partner-mini-name">' + window.escapeHtml(p.nickname || '') + '</p>' +
+          '<p class="muted">账号：' + window.escapeHtml(p.account || '-') +
+            ' · 绑定于 ' + window.escapeHtml(t.bound_at || '') + '</p>' +
+        '</div>' +
+        '<a href="/duo" class="btn btn-outline btn-sm">去管理</a>' +
+      '</div>';
+  }
+
+  if (teamPanel) {
+    getJson('/api/team')
+      .then(function (r) {
+        if (!r.ok) throw new Error(r.body.message);
+        renderTeamPanel(r.body || {});
+      })
+      .catch(function () {
+        teamPanel.innerHTML = '<p class="muted">组队信息加载失败，请刷新重试。</p>';
+      });
   }
 })();

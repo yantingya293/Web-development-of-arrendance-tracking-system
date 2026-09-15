@@ -11,6 +11,8 @@
  * Day 11：双人协作统计（任务分布 / 双方累计 / 连续天数 / 解绑后 409，2 项）
  * Day 12：全员打卡广场（合并流 / 倒序 / scope 筛选 / 统计，2 项）
  * Day 13：个人数据看板（任务分布与完成率 / 月度日历合并聚合，2 项）
+ * Day 14：个人资料（昵称校验与更新 / 头像路径写入与清除，2 项）
+ *          管理员后台（概览统计口径 / 用户搜索分页 / 公共任务 CRUD，3 项）
  * 安全加固：改密与会话作废 / 上传魔数校验（3 项，检查器支持 async）
  *
  * 运行：node dbCheck.js
@@ -570,6 +572,122 @@ async function main() {
         throw new Error('历史月查询异常: ' + JSON.stringify(empty.calendar));
       const bad = statsService.myDashboard(userAId, { month: '2026-13' }); // 非法月份回退当前月
       if (!/^\d{4}-\d{2}$/.test(bad.month)) throw new Error('非法月份未回退: ' + bad.month);
+    });
+
+    // --- Day 14：个人资料（昵称 / 头像） ---
+    const { updateProfile, updateAvatar, clearAvatar } = require('./src/services/user.service');
+    await check('user.service updateProfile（昵称校验 + 更新生效）', () => {
+      let empty, tooLong;
+      try {
+        updateProfile(userAFull, { nickname: '   ' });
+      } catch (err) {
+        empty = err;
+      }
+      try {
+        updateProfile(userAFull, { nickname: 'x'.repeat(21) });
+      } catch (err) {
+        tooLong = err;
+      }
+      if (!empty || empty.status !== 400 || !empty.errors.nickname) throw new Error('空昵称未按预期抛 400');
+      if (!tooLong || tooLong.status !== 400) throw new Error('超长昵称未按预期抛 400');
+
+      const u = updateProfile(userAFull, { nickname: '  改名后的A  ' });
+      if (u.nickname !== '改名后的A') throw new Error('昵称未去首尾空格: ' + u.nickname);
+      const row = db.prepare('SELECT nickname FROM users WHERE id = ?').get(userAId);
+      if (row.nickname !== '改名后的A') throw new Error('昵称未落库');
+      updateProfile(userAFull, { nickname: userARow.nickname }); // 还原，避免影响后续断言的昵称比对
+    });
+    await check('user.service updateAvatar / clearAvatar（写入 + 替换返回旧值 + 非 uploads 前缀拒绝）', () => {
+      let bad;
+      try {
+        updateAvatar(userAFull, '../../etc/passwd');
+      } catch (err) {
+        bad = err;
+      }
+      if (!bad || bad.status !== 400) throw new Error('非 uploads/ 前缀应被拒绝');
+
+      const set = updateAvatar(userAFull, 'uploads/avatars/probe.png');
+      if (set.previous !== null || set.user.avatar_path !== 'uploads/avatars/probe.png')
+        throw new Error('头像写入异常: ' + JSON.stringify(set));
+
+      const replaced = updateAvatar(userAFull, 'uploads/avatars/probe2.png');
+      if (replaced.previous !== 'uploads/avatars/probe.png') throw new Error('替换时未返回旧路径');
+
+      const cleared = clearAvatar(userAFull);
+      if (cleared.previous !== 'uploads/avatars/probe2.png' || cleared.user.avatar_path !== null)
+        throw new Error('撤销头像异常: ' + JSON.stringify(cleared));
+    });
+
+    // --- Day 14：管理员后台（概览 / 用户列表 / 公共任务） ---
+    const adminService = require('./src/services/admin.service');
+    await check('admin.service overview（统计口径与库内数据一致）', () => {
+      const o = adminService.overview();
+      const usersN = db.prepare('SELECT COUNT(*) AS n FROM users').get().n;
+      const publicN = db.prepare('SELECT COUNT(*) AS n FROM tasks WHERE owner_id IS NULL').get().n;
+      const checkinN = db
+        .prepare('SELECT (SELECT COUNT(*) FROM checkins) + (SELECT COUNT(*) FROM duo_checkins) AS n')
+        .get().n;
+      if (o.users.total !== usersN) throw new Error(`用户总数不一致: ${o.users.total} != ${usersN}`);
+      if (o.tasks.public_total !== publicN) throw new Error(`公共任务数不一致: ${o.tasks.public_total} != ${publicN}`);
+      if (o.checkins.total !== checkinN) throw new Error(`打卡总数不一致: ${o.checkins.total} != ${checkinN}`);
+      if (o.checkins.solo + o.checkins.duo !== o.checkins.total) throw new Error('打卡分项与总数不一致');
+      if (o.users.normal + o.users.admins !== o.users.total) throw new Error('角色分项与总数不一致');
+      if (o.users.bound !== o.teams.active * 2) throw new Error('组队人数应为 active 队伍 × 2');
+      if (o.tasks.solo_total > 0 && typeof o.tasks.solo_completion_rate !== 'number')
+        throw new Error('有任务时完成率不应为 null');
+    });
+    await check('admin.service listUsers（关键词搜索 + 分页 + 关联计数 + 组队状态）', () => {
+      const all = adminService.listUsers({ limit: 100 });
+      if (all.total !== db.prepare('SELECT COUNT(*) AS n FROM users').get().n) throw new Error('用户总数不一致');
+
+      const hit = adminService.listUsers({ q: '__dbcheck_a__' });
+      if (hit.total !== 1 || hit.users[0].account !== '__dbcheck_a__')
+        throw new Error('关键词搜索未精确命中: ' + JSON.stringify(hit.users.map((u) => u.account)));
+
+      const mine = hit.users[0];
+      const taskN = db.prepare('SELECT COUNT(*) AS n FROM tasks WHERE owner_id = ?').get(userAId).n;
+      if (mine.task_count !== taskN) throw new Error(`自建任务数不一致: ${mine.task_count} != ${taskN}`);
+      if (mine.in_team !== true) throw new Error('组队状态应为 true');
+      if (mine.total_checkins !== mine.solo_checkin_count + mine.duo_checkin_count)
+        throw new Error('打卡合计不一致');
+
+      const page = adminService.listUsers({ limit: 1, offset: 1 });
+      if (page.users.length !== 1 || page.limit !== 1 || page.offset !== 1) throw new Error('分页参数未生效');
+
+      const missing = adminService.listUsers({ q: '__no_such_keyword__' });
+      if (missing.total !== 0 || missing.users.length !== 0) throw new Error('无命中搜索应返回空');
+    });
+    await check('task.service 公共任务 CRUD（发布 / 列表 / 校验 / 删除 / 非公共任务拦截）', () => {
+      const before = taskService.listPublicTasks().length;
+      const t = taskService.createPublicTask({
+        title: '探针：管理员发布的公共任务',
+        category: 'weekly',
+        deadline: '2099-12-31',
+      });
+      if (t.owner_id !== null || t.type !== 'solo' || t.category !== 'weekly' || t.deadline !== '2099-12-31 23:59:59')
+        throw new Error('公共任务创建异常: ' + JSON.stringify(t));
+
+      const list = taskService.listPublicTasks();
+      if (list.length !== before + 1 || !list.some((x) => x.id === t.id)) throw new Error('公共任务未出现在列表');
+
+      let badTitle;
+      try {
+        taskService.createPublicTask({ title: '' });
+      } catch (err) {
+        badTitle = err;
+      }
+      if (!badTitle || badTitle.status !== 400) throw new Error('公共任务空标题未按预期抛 400');
+
+      let notPublic;
+      try {
+        taskService.deletePublicTask(day5TaskId); // A 的自建任务，不应能走公共任务删除通道
+      } catch (err) {
+        notPublic = err;
+      }
+      if (!notPublic || notPublic.status !== 404) throw new Error('非公共任务应返回 404');
+
+      taskService.deletePublicTask(t.id);
+      if (taskService.listPublicTasks().some((x) => x.id === t.id)) throw new Error('公共任务删除未生效');
     });
 
     // --- Day 8 收尾：解绑（搭档通知 + 队伍归档） ---

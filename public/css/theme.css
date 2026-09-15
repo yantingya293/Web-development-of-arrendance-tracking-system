@@ -2184,5 +2184,276 @@ button.upload-zone:disabled {
   }
 }
 
+/* ---- Day 14：头像渲染（顶栏 / 页头 / 列表 / 管理后台通用） ---- */
+.avatar,
+.avatar-sm {
+  overflow: hidden;
+}
+
+.avatar img,
+.avatar-sm img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* 个人中心：头像操作与设置表单 */
+.profile-head {
+  align-items: flex-start;
+}
+
+.profile-head-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.avatar-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  margin-top: var(--sp-2);
+}
+
+.avatar-hint {
+  font-size: var(--fs-xs);
+}
+
+.profile-block {
+  border-top: 1px dashed var(--border);
+  padding-top: var(--sp-3);
+  margin-top: var(--sp-4);
+}
+
+.profile-form {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: var(--sp-3);
+}
+
+.profile-form .form-group {
+  flex: 1 1 220px;
+  margin-bottom: 0;
+}
+
+/* 我的搭档卡 */
+.partner-mini {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--primary-light);
+}
+
+.partner-mini-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.partner-mini-name {
+  margin: 0;
+  font-weight: 600;
+}
+
+.partner-mini p {
+  margin: 2px 0 0;
+  font-size: var(--fs-sm);
+}
+
+/* ---- Day 14：管理员后台 ---- */
+.admin-card {
+  max-width: 960px;
+}
+
+.admin-head {
+  margin-bottom: var(--sp-4);
+}
+
+.admin-head p {
+  margin: 4px 0 0;
+  font-size: var(--fs-sm);
+}
+
+.admin-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-5);
+}
+
+.admin-stats .stat-card {
+  padding: var(--sp-3);
+}
+
+.stat-sub {
+  margin: 4px 0 0;
+  font-size: var(--fs-xs);
+}
+
+.admin-search {
+  display: flex;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+  margin-bottom: var(--sp-3);
+}
+
+.admin-search input {
+  flex: 1 1 220px;
+  max-width: 320px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-md);
+  color: var(--text);
+}
+
+.admin-search input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px var(--primary-light);
+}
+
+.table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-sm);
+  white-space: nowrap;
+}
+
+.data-table th,
+.data-table td {
+  padding: 10px 12px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+
+.data-table th {
+  background: var(--bg);
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.data-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.data-table tbody tr:hover {
+  background: var(--primary-light);
+}
+
+.data-table .num {
+  text-align: right;
+}
+
+.user-cell {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.admin-pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  margin-top: var(--sp-3);
+  font-size: var(--fs-sm);
+}
+
+.pager-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.public-task-form {
+  margin-bottom: var(--sp-4);
+  padding: var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+}
+
+.public-task-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.public-task-item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-3);
+  padding: var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.public-task-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.public-task-title {
+  margin: 0;
+  font-weight: 600;
+}
+
+.public-task-title .tag {
+  margin-right: 6px;
+}
+
+.public-task-main p {
+  margin: 4px 0 0;
+  font-size: var(--fs-sm);
+  word-break: break-word;
+}
+
+.admin-foot {
+  margin-top: var(--sp-4);
+}
+
+/* ---- Day 14 响应式：后台栅格与表格 ---- */
+@media (max-width: 900px) {
+  .admin-stats {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 600px) {
+  .admin-stats {
+    grid-template-columns: 1fr;
+  }
+
+  .profile-head {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+
+  .avatar-actions {
+    justify-content: center;
+  }
+
+  .partner-mini,
+  .public-task-item {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
+
 
 

@@ -42,7 +42,7 @@
         return (
           '<div class="invite-card">' +
             '<div class="invite-info">' +
-              '<span class="avatar-sm" aria-hidden="true">' + escapeHtml(String(inv.from_nickname).slice(0, 1)) + '</span>' +
+              '<span class="avatar-sm" aria-hidden="true">' + window.avatarInner({ nickname: inv.from_nickname, avatar_path: inv.from_avatar_path }) + '</span>' +
               '<div>' +
                 '<p class="invite-text"><strong>' + escapeHtml(inv.from_nickname) + '</strong>（' + escapeHtml(inv.from_account) + '）邀请你组队</p>' +
                 '<p class="muted invite-time">发出时间：' + escapeHtml(inv.created_at) + '</p>' +
@@ -70,7 +70,7 @@
       html +=
         '<div class="partner-card">' +
           '<div class="partner-info">' +
-            '<span class="avatar" aria-hidden="true">' + escapeHtml(String(p.nickname).slice(0, 1)) + '</span>' +
+            '<span class="avatar" aria-hidden="true">' + window.avatarInner(p) + '</span>' +
             '<div>' +
               '<h3 class="partner-name">' + escapeHtml(p.nickname) + '</h3>' +
               '<p class="muted">账号：' + escapeHtml(p.account) + ' · 绑定于 ' + escapeHtml(view.team.bound_at) + '</p>' +
@@ -82,7 +82,7 @@
       html +=
         '<div class="partner-card">' +
           '<div class="partner-info">' +
-            '<span class="avatar-sm" aria-hidden="true">' + escapeHtml(String(view.outgoing.to_nickname).slice(0, 1)) + '</span>' +
+            '<span class="avatar-sm" aria-hidden="true">' + window.avatarInner({ nickname: view.outgoing.to_nickname, avatar_path: view.outgoing.to_avatar_path }) + '</span>' +
             '<div>' +
               '<p class="invite-text">已向 <strong>' + escapeHtml(view.outgoing.to_nickname) + '</strong>（' + escapeHtml(view.outgoing.to_account) + '）发出邀请</p>' +
               '<p class="muted invite-time">等待对方处理；对方接受后即完成组队。</p>' +

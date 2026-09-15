@@ -15,6 +15,7 @@ const duoCheckinRoutes = require('./src/routes/duoCheckin.routes');
 const notificationRoutes = require('./src/routes/notification.routes');
 const galleryRoutes = require('./src/routes/gallery.routes');
 const statsRoutes = require('./src/routes/stats.routes');
+const adminRoutes = require('./src/routes/admin.routes');
 const pageRoutes = require('./src/routes/page.routes');
 
 // Day 2：启动即建库 + 补种（幂等）
@@ -115,6 +116,7 @@ app.use('/api/duo-checkins', duoCheckinRoutes); // Day 10：双人打卡（每�
 app.use('/api/notifications', notificationRoutes); // Day 10：站内通知（协作动态）
 app.use('/api/gallery', galleryRoutes); // Day 12：全员打卡广场（成果展示）
 app.use('/api/stats', statsRoutes); // Day 13：个人数据统计（看板）
+app.use('/api/admin', adminRoutes); // Day 14：管理员后台（全站统计 / 用户列表 / 公共任务）
 app.use('/', pageRoutes);
 
 // 404 兜底

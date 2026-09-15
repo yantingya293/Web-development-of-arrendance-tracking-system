@@ -67,7 +67,7 @@
         : '<p class="muted duo-home-more">还没有共同任务，去广场和 ' + escapeHtml(p.nickname) + ' 创建第一个吧。</p>';
       body.innerHTML =
         '<div class="duo-home-partner">' +
-          '<span class="avatar-sm" aria-hidden="true">' + escapeHtml(String(p.nickname).slice(0, 1)) + '</span>' +
+          '<span class="avatar-sm" aria-hidden="true">' + window.avatarInner(p) + '</span>' +
           '<div class="duo-home-partner-main">' +
             '<p class="duo-home-partner-name">与 <strong>' + escapeHtml(p.nickname) + '</strong> 搭档中</p>' +
             listHtml +

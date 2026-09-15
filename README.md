@@ -53,8 +53,8 @@ npm run dev
 │   └── index.ejs          # 首页四板块骨架
 ├── public/
 │   ├── css/               # 样式（theme.css 统一主题与设计变量）
-│   ├── js/                # 前端脚本（app.js 公共交互与首页动态 / auth.js 认证表单 / tasks.js 单人任务板块 / checkin.js 打卡表单 / history.js 历史记录页 / me.js 个人中心统计）
-│   └── uploads/           # 打卡照片上传目录（multer 落盘，git 忽略）
+│   ├── js/                # 前端脚本（app.js 公共交互与首页动态 / auth.js 认证表单 / tasks.js 单人任务板块 / checkin.js 打卡表单 / history.js 历史记录页 / me.js 个人中心 / admin.js 管理后台）
+│   └── uploads/           # 打卡照片与头像上传目录（multer 落盘，git 忽略；头像在 uploads/avatars/）
 └── src/
     ├── routes/            # 路由层
     ├── services/          # 业务逻辑层
@@ -70,9 +70,9 @@ npm run dev
 - M3 扩展与打磨（Day 13–18）：数据统计 / 个人中心 / 响应式 / UI
 - M4 验收与交付（Day 19–21）：测试 / 安全 / 文档 / 部署
 
-当前进度：**Day 13 · 个人中心数据看板上线（M3 扩展与打磨进行中）**。
+当前进度：**Day 14 · 个人设置与管理员后台（M3 扩展与打磨进行中）**。
 
-- ✅ Day 2：SQLite 数据层 —— 七张表（users / tasks / checkins / teams / duo_tasks / duo_checkins / notifications）+ `src/db/db.js` 封装 + 种子数据；运行 `node dbCheck.js` 可验证（38 项检查）
+- ✅ Day 2：SQLite 数据层 —— 七张表（users / tasks / checkins / teams / duo_tasks / duo_checkins / notifications）+ `src/db/db.js` 封装 + 种子数据；运行 `node dbCheck.js` 可验证（检查项随里程碑递增，Day 14 为 52 项）
 - ✅ Day 3：用户系统 —— 注册 / 登录 / 登出 / `me` 接口，bcrypt 密码哈希，Cookie+Session（7 天，httpOnly / SameSite=Lax），`requireAuth` / `requireAdmin` 中间件，登录 / 注册页面（客户端 + 服务端双重校验），首页用户区与登出，`/admin` 后台占位页（仅管理员）
 - ✅ Day 4：前端基础布局 + 首页骨架 —— `theme.css` 补全设计变量（主色 / 字号 / 间距 / 阴影 / 语义色）与响应式断点（900 / 768 / 480px）；首页四板块（左上单人任务 / 右上双人任务 / 中下左打卡表单 / 中下右实时动态）；通用组件 `loading` / `empty` / `toast`（`views/partials/components/`，Toast 经 `window.showToast()` 调用）；顶栏用户菜单可点击展开（个人中心 / 管理后台 / 登出，ESC 与点击外部收起）；`/duo`、`/gallery`、`/history` 导航占位页可达
 - ✅ Day 5：单人任务模块 —— `tasks` 表新增 `category` 列（daily 每日任务 / weekly 每周重点 / question 学习问题，老库自动迁移回填）；`/api/tasks` 五个接口（列表 / 新建 / 更新 / 状态流转 / 删除，全部登录保护）；首页单人任务板块接入真实数据：分类筛选 tabs（带计数）、任务卡片（分类 + 状态标签、截止倒计时、完成态划线）、新建 / 编辑弹窗（分类药丸单选、字段校验与错误回显）、删除确认、状态一键流转（开始 / 完成 / 重新打开）；过截止且未完成的任务在读取时自动标记「已逾期」（`overdue` 不可手动设置）；公共任务（管理员发布）全员可见，普通用户只读
@@ -84,3 +84,4 @@ npm run dev
 - ✅ Day 11：双人协作进度可视化（M2）—— `/api/duo-checkins/stats` 队伍协作统计（任务状态分布 / 双方打卡累计与相对视角 / 今日双方进度 / 连续协作天数（双方同日都打卡的连续自然日，口径与单人连续打卡一致）/ 近 7 天逐日双方次数）；`/duo` 页新增「协作数据」板块（未组队自动隐藏）：四张统计卡（连续协作 / 累计双人打卡 / 我的打卡 / 搭档打卡）+ 共同任务分布摘要行 + 近 7 天双方打卡对比柱状图（柱高按 7 天峰值等比缩放、柱顶数字、今日列高亮、图例区分我 / 搭档，横向可滚动）；任务与打卡的增删流转均联动刷新统计；`dbCheck.js` 升级至 43 项（新增协作统计探针：分布 / 累计 / 今日 / 连续天数 + 解绑后 409）
 - ✅ Day 12：全员打卡广场（M2 收官）—— 新增 `src/services/gallery.service.js` + `/api/gallery` 两个接口（登录保护）：`GET /api/gallery` 全站打卡流（单人 `checkins` 与双人 `duo_checkins` 用 UNION ALL 合并，`kind` 字段区分来源，时间倒序 + `scope=solo|duo` 筛选 + limit/offset 分页 + `total`）、`GET /api/gallery/stats`（全站累计 / 今日打卡 / 今日参与人数去重）；`/gallery` 从占位页转为真实页面（登录可见）：三张统计卡 + 来源筛选 tabs + 打卡卡片流（头像昵称 / 任务标题 / 单人·共同任务标签 / 逾期补卡标记 / 友好时间 / 备注 / 照片缩略图点击查看）+「加载更多」分页；双人打卡在解绑后作为历史成果继续展示；`dbCheck.js` 升级至 45 项（合并流 / 倒序 / scope 拆分 / 统计探针，真实库含历史数据故全部相对断言）
 - ✅ Day 13：个人中心数据看板（M3 开篇）—— 新增 `src/services/stats.service.js` + `GET /api/stats/dashboard?month=YYYY-MM`（登录保护，非法月份回退当前月）：任务完成率与状态分布（只算自己的单人任务，公共任务与双人任务不计入；`completion_rate` 整数百分比，无任务为 null）、分类分布（daily / weekly / question 数量）、月度打卡日历（单人 `submitted_at` 与双人 `day` 列按日合并聚合，含当月合计与有记录天数）、单人 / 双人打卡累计；`/me` 页新增「学习数据统计」板块：任务完成率卡（大数字 + 进度条 + 已完成 x/y 明细）、任务分类分布卡（三行占比条）、打卡日历卡（周日开头月历网格、4 档着色复用热度口径、今日描边、上/下月翻页且不超过当前月、月度摘要行）；无任务时显示创建引导；`dbCheck.js` 升级至 47 项（分布 / 完成率 / 日历合并 / 历史月与非法月份回退探针）
+- ✅ Day 14：个人设置与管理员后台（M3）—— 个人资料：`users.avatar_path` 正式启用，`PATCH /api/auth/profile`（改昵称，沿用注册的 1–20 字符规则）、`POST /api/auth/avatar`（multipart 单图，字段 `avatar`，JPG / PNG ≤ 2MB，落 `public/uploads/avatars/`，MIME 白名单 → 文件头魔数双重校验）、`DELETE /api/auth/avatar`；换头像自动清理旧文件、验证失败删除残留，头像写入只接受 `uploads/` 前缀；头像在前端全站生效（顶栏用户菜单 / 个人中心 / 双人广场搭档卡与邀请卡，`window.avatarInner` 统一渲染，无头像回落昵称首字）；`/me` 页新增「个人设置」（昵称表单 + 更换 / 移除头像）与「我的搭档」（组队信息卡：搭档头像昵称账号 + 绑定时间 + 去管理，未组队给出组队引导）；管理员后台 `/admin` 从占位页升级为真实页面：新增 `src/services/admin.service.js`（`overview` 全站统计 / `listUsers` 用户列表含自建任务数、单人 / 双人打卡数、组队状态）、`src/routes/admin.routes.js`（`GET /api/admin/overview`、`GET /api/admin/users` 支持关键词搜索与分页、`GET/POST/DELETE /api/admin/public-tasks` 公共任务管理，全部 `requireAdmin`），`/admin` 页呈现八张统计卡 + 用户表格（搜索 / 重置 / 分页）+ 公共任务发布表单与列表（删除二次确认，概览计数联动刷新）；`src/middleware/upload.js` 抽出 `uploadAvatar` / `fileHasImageMagic` / `removeStoredFile`，`multerErrorResponse` 支持自定义字段与文案；`dbCheck.js` 升级至 52 项（昵称校验与更新、头像路径写入与清除、概览统计口径、用户搜索分页、公共任务 CRUD 与越权拦截探针）

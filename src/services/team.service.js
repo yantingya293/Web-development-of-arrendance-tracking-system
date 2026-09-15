@@ -43,8 +43,10 @@ function listMyInvites(userId) {
       `SELECT n.id, n.created_at,
               json_extract(n.payload, '$.fromId')    AS from_id,
               json_extract(n.payload, '$.fromNickname') AS from_nickname,
-              json_extract(n.payload, '$.fromAccount')  AS from_account
+              json_extract(n.payload, '$.fromAccount')  AS from_account,
+              fu.avatar_path                            AS from_avatar_path
        FROM notifications n
+       LEFT JOIN users fu ON fu.id = json_extract(n.payload, '$.fromId')
        WHERE n.user_id = ? AND n.type = 'invite' AND n.read_at IS NULL
        ORDER BY n.created_at DESC, n.id DESC`
     )
@@ -55,7 +57,9 @@ function listMyInvites(userId) {
 function getMyOutgoingInvite(userId) {
   return getDb()
     .prepare(
-      `SELECT n.id, n.created_at, u.id AS to_id, u.nickname AS to_nickname, u.account AS to_account
+      `SELECT n.id, n.created_at,
+              u.id AS to_id, u.nickname AS to_nickname, u.account AS to_account,
+              u.avatar_path AS to_avatar_path
        FROM notifications n JOIN users u ON u.id = n.user_id
        WHERE n.type = 'invite' AND n.read_at IS NULL
          AND json_extract(n.payload, '$.fromId') = ?
@@ -70,13 +74,13 @@ function buildTeamView(row, meId) {
   if (!row) return null;
   const partnerId = row.user_a === meId ? row.user_b : row.user_a;
   const partner = getDb()
-    .prepare('SELECT id, nickname, account FROM users WHERE id = ?')
+    .prepare('SELECT id, nickname, account, avatar_path FROM users WHERE id = ?')
     .get(partnerId);
   return {
     id: row.id,
     bound_at: row.bound_at,
     me_is_user_a: row.user_a === meId,
-    partner: partner || { id: partnerId, nickname: '（用户已注销）', account: '-' },
+    partner: partner || { id: partnerId, nickname: '（用户已注销）', account: '-', avatar_path: null },
   };
 }
 
