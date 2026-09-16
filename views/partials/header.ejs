@@ -4,6 +4,19 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title><%= title %> · 学习打卡</title>
+  <script>
+    /* Day 17：首屏绘制前定主题，避免深色用户闪白（FOUC）。
+       优先读用户手选（localStorage），否则跟随系统 prefers-color-scheme。 */
+    (function () {
+      try {
+        var t = localStorage.getItem('checkin-theme');
+        if (t !== 'light' && t !== 'dark') {
+          t = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        }
+        if (t === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
+      } catch (e) { /* 隐私模式等场景下静默回退浅色 */ }
+    })();
+  </script>
   <link rel="stylesheet" href="/css/theme.css" />
 </head>
 <body>
@@ -17,6 +30,7 @@
       <a href="/history" class="<%= active === 'history' ? 'active' : '' %>">历史记录</a>
     </nav>
     <div class="topbar-right">
+      <button type="button" id="themeToggle" class="theme-toggle" aria-label="切换深色模式" title="切换深色 / 浅色主题">🌙</button>
       <% if (currentUser) { %>
         <div class="user-menu">
           <button type="button" id="userMenuBtn" class="user-menu-btn"

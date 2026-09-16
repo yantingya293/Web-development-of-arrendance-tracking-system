@@ -1,10 +1,14 @@
 /* 学习打卡网页 · 全局主题（蓝白风）
-   Day 1：主色变量；Day 4：补全字号 / 间距 / 阴影 / 语义色，作为全站视觉规范。 */
+   Day 1：主色变量；Day 4：补全字号 / 间距 / 阴影 / 语义色，作为全站视觉规范。
+   Day 17：新增深色模式（[data-theme="dark"] 变量覆盖，见文件末尾）。 */
 :root {
+  color-scheme: light; /* 原生控件（输入框 / 日期选择 / 滚动条）跟随主题 */
+
   /* 主色 */
   --primary: #3b82f6;
   --primary-dark: #2563eb;
   --primary-light: #eff6ff;
+  --primary-border: #bfdbfe; /* 主色系悬浮描边（Day 17 从硬编码收编为变量，供深色模式覆盖） */
 
   /* 中性色 */
   --bg: #f8fafc;
@@ -121,6 +125,27 @@ body {
   display: flex;
   align-items: center;
   gap: 12px;
+}
+
+/* Day 17：深色模式切换按钮（图标由 app.js 按当前主题同步为 🌙 / ☀️） */
+.theme-toggle {
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background var(--transition), border-color var(--transition);
+}
+
+.theme-toggle:hover {
+  background: var(--primary-light);
+  border-color: var(--primary-border);
 }
 
 /* 内容区 */
@@ -504,7 +529,7 @@ body {
 
 .tag-solo {
   background: var(--primary-light);
-  border-color: #bfdbfe;
+  border-color: var(--primary-border);
   color: var(--primary-dark);
 }
 
@@ -565,7 +590,7 @@ body {
   width: 64px;
   height: 64px;
   margin-bottom: var(--sp-2);
-  border: 1px dashed #bfdbfe;
+  border: 1px dashed var(--primary-border);
   border-radius: 50%;
   background: var(--primary-light);
 }
@@ -908,13 +933,13 @@ body {
 }
 
 .task-tabs .tab:hover {
-  border-color: #bfdbfe;
+  border-color: var(--primary-border);
   color: var(--primary-dark);
 }
 
 .task-tabs .tab.active {
   background: var(--primary-light);
-  border-color: #bfdbfe;
+  border-color: var(--primary-border);
   color: var(--primary-dark);
   font-weight: 600;
 }
@@ -954,7 +979,7 @@ body {
 }
 
 .task-card:hover {
-  border-color: #bfdbfe;
+  border-color: var(--primary-border);
   box-shadow: var(--shadow-sm);
 }
 
@@ -1013,7 +1038,7 @@ body {
 }
 
 .task-card-actions .btn:hover {
-  border-color: #bfdbfe;
+  border-color: var(--primary-border);
   color: var(--primary);
 }
 
@@ -1025,7 +1050,7 @@ body {
 /* ---- 分类标签（daily / weekly / question） ---- */
 .tag-cat-daily {
   background: var(--primary-light);
-  border-color: #bfdbfe;
+  border-color: var(--primary-border);
   color: var(--primary-dark);
 }
 
@@ -1048,7 +1073,7 @@ body {
 
 .tag-st-in_progress {
   background: var(--primary-light);
-  border-color: #bfdbfe;
+  border-color: var(--primary-border);
   color: var(--primary-dark);
 }
 
@@ -1154,7 +1179,7 @@ body {
 }
 
 .radio-pill:hover {
-  border-color: #bfdbfe;
+  border-color: var(--primary-border);
   color: var(--primary-dark);
 }
 
@@ -1166,7 +1191,7 @@ body {
 
 .radio-pill:has(input:checked) {
   background: var(--primary-light);
-  border-color: #bfdbfe;
+  border-color: var(--primary-border);
   color: var(--primary-dark);
   font-weight: 600;
 }
@@ -1196,7 +1221,7 @@ button.upload-zone {
 
 button.upload-zone:hover,
 button.upload-zone:focus-visible {
-  border-color: #bfdbfe;
+  border-color: var(--primary-border);
   color: var(--primary-dark);
   background: var(--primary-light);
 }
@@ -1265,7 +1290,7 @@ button.upload-zone:disabled {
 
 /* ---- 任务卡片「打卡」入口（主操作视觉，强于其它幽灵按钮） ---- */
 .task-card-actions .btn-checkin {
-  border-color: #bfdbfe;
+  border-color: var(--primary-border);
   background: var(--primary-light);
   color: var(--primary-dark);
 }
@@ -1493,7 +1518,7 @@ button.upload-zone:disabled {
   transform: scale(1.08);
 }
 
-.heatmap-box.lv1 { background: #bfdbfe; border-color: #93c5fd; }
+.heatmap-box.lv1 { background: var(--primary-border); border-color: #93c5fd; }
 .heatmap-box.lv2 { background: #60a5fa; border-color: #3b82f6; }
 .heatmap-box.lv3 { background: var(--primary-dark); border-color: var(--primary-dark); }
 
@@ -1698,7 +1723,7 @@ button.upload-zone:disabled {
 .duo-task-division {
   margin: var(--sp-2) 0;
   padding: var(--sp-2) var(--sp-3);
-  border-left: 3px solid #bfdbfe;
+  border-left: 3px solid var(--primary-border);
   background: var(--bg);
   border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
 }
@@ -2180,7 +2205,7 @@ button.upload-zone:disabled {
 }
 
 .cal-cell.lv1 {
-  background: #bfdbfe;
+  background: var(--primary-border);
   border-color: #93c5fd;
   color: var(--primary-dark);
 }
@@ -2494,3 +2519,86 @@ button.upload-zone:disabled {
 
 
 
+
+/* ===== Day 17：深色模式 =====
+   切换方式：html[data-theme="dark"]（header.ejs 头部内联脚本在首屏绘制前设置，
+   避免闪白；public/js/app.js 负责按钮交互与 localStorage 持久化）。
+   口径：背景 / 卡片走 slate 深色阶，语义色整体提亮保证对比度，
+   pastel 徽章底色换为深色透明底 + 亮色文字。 */
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  /* 主色：主色保持，浅蓝底/描边换为深色阶，文字强调提亮 */
+  --primary: #60a5fa;
+  --primary-dark: #93c5fd;
+  --primary-light: #172554;
+  --primary-border: #1e40af;
+
+  /* 中性色 */
+  --bg: #0f172a;
+  --surface: #1e293b;
+  --text: #e2e8f0;
+  --text-muted: #94a3b8;
+  --border: #334155;
+
+  /* 语义色：底色换深色透明调，文字色提亮 */
+  --success: #4ade80;
+  --success-light: #052e16;
+  --warning: #fbbf24;
+  --warning-light: #451a03;
+  --danger: #f87171;
+  --danger-light: #450a0a;
+
+  /* 阴影：深色下加重才能形成层次 */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.45);
+  --shadow-lg: 0 12px 28px rgba(0, 0, 0, 0.55);
+  --shadow: var(--shadow-sm);
+}
+
+/* 深色下彩色边框类组件的补充修正（浅色系硬编码 pastel 底 / 描边 / 深文字换深色阶） */
+[data-theme="dark"] .alert-error {
+  background: var(--danger-light);
+  border-color: #7f1d1d;
+  color: #fca5a5;
+}
+
+[data-theme="dark"] .alert-success {
+  background: var(--success-light);
+  border-color: #14532d;
+  color: #86efac;
+}
+
+[data-theme="dark"] .badge-admin {
+  background: rgba(251, 146, 60, 0.14);
+  border-color: #9a3412;
+  color: #fdba74;
+}
+
+[data-theme="dark"] .tag-duo,
+[data-theme="dark"] .tag-cat-question {
+  background: rgba(167, 139, 250, 0.14);
+  border-color: #5b21b6;
+  color: #c4b5fd;
+}
+
+[data-theme="dark"] .tag-cat-weekly {
+  border-color: #92400e;
+  color: #fcd34d;
+}
+
+[data-theme="dark"] .tag-st-completed {
+  border-color: #166534;
+}
+
+[data-theme="dark"] .tag-st-overdue {
+  border-color: #7f1d1d;
+}
+
+[data-theme="dark"] .task-card-actions .btn-danger-ghost:hover {
+  border-color: #7f1d1d;
+}
+
+[data-theme="dark"] .duo-home-notice {
+  border-color: #92400e;
+}

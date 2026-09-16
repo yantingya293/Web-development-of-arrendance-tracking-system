@@ -32,6 +32,36 @@
     activeNav.scrollIntoView({ inline: 'center', block: 'nearest' });
   }
 
+  /* Day 17：深色模式切换。
+     初始主题由 header.ejs 头部内联脚本在绘制前设置（localStorage > 系统偏好），
+     这里只负责按钮交互：翻转 data-theme、持久化、同步图标与无障碍标签。 */
+  var THEME_KEY = 'checkin-theme';
+  var themeToggle = document.getElementById('themeToggle');
+
+  function currentTheme() {
+    return document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+  }
+
+  function syncThemeButton() {
+    if (!themeToggle) return;
+    var dark = currentTheme() === 'dark';
+    themeToggle.textContent = dark ? '☀️' : '🌙';
+    themeToggle.setAttribute('aria-label', dark ? '切换浅色模式' : '切换深色模式');
+  }
+
+  if (themeToggle) {
+    syncThemeButton();
+    themeToggle.addEventListener('click', function () {
+      var next = currentTheme() === 'dark' ? 'light' : 'dark';
+      if (next === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
+      else document.documentElement.removeAttribute('data-theme');
+      try {
+        localStorage.setItem(THEME_KEY, next);
+      } catch (e) { /* 隐私模式写不进就仅当次生效 */ }
+      syncThemeButton();
+    });
+  }
+
   /* Toast：window.showToast(message, type, duration)
      type: info（默认）| success | error */
   window.showToast = function (message, type, duration) {
