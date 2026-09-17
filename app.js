@@ -6,6 +6,8 @@ const cookieSession = require('cookie-session');
 const { initDb } = require('./src/db/db');
 const { seedIfEmpty } = require('./src/db/seed');
 const { getSessionUser } = require('./src/services/user.service');
+const { requireAuth } = require('./src/middleware/auth');
+const { UPLOAD_DIR } = require('./src/middleware/upload');
 const authRoutes = require('./src/routes/auth.routes');
 const taskRoutes = require('./src/routes/task.routes');
 const checkinRoutes = require('./src/routes/checkin.routes');
@@ -89,6 +91,11 @@ app.set('views', path.join(__dirname, 'views'));
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+// Day 18：打卡照片与头像移出公开静态目录——/uploads/* 必须登录后才能访问。
+// 存储目录在 data/uploads（upload.js 启动时自动把老 public/uploads 迁移过去），
+// express.static 自带路径穿越防护，requireAuth 在其前统一挡未登录请求。
+// 注意必须挂在 public 静态之前，避免旧文件残留在 public/uploads 时被直出。
+app.use('/uploads', requireAuth, express.static(UPLOAD_DIR));
 app.use(express.static(path.join(__dirname, 'public')));
 
 // 每个请求装载当前用户（供模板与守卫使用）。

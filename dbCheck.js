@@ -804,7 +804,7 @@ async function main() {
       if (dupMs < 20) throw new Error(`等时处理未生效（重复注册仅耗时 ${dupMs}ms，应含 bcrypt 比较）`);
     });
 
-    const uploadsDir = path.join(__dirname, 'public', 'uploads');
+    const uploadsDir = require('./src/middleware/upload').UPLOAD_DIR; // Day 18 起在 data/uploads
     const waitUnlink = () => new Promise((r) => setTimeout(r, 150)); // removeStoredFile 为异步尽力而为
     const sweepTemp = (...files) => {
       for (const f of files) {

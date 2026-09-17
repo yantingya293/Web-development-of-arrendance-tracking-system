@@ -13,8 +13,9 @@
  *
  * 上传约定：
  *   * 文件名由服务端生成（时间戳 + 随机串 + 白名单后缀），不信任原始文件名
- *   * 打卡照片落盘 public/uploads/，头像落盘 public/uploads/avatars/（均为静态目录直出），
- *     库内存相对路径 uploads/xxx.jpg 或 uploads/avatars/xxx.png
+ *   * 打卡照片落盘 data/uploads/，头像落盘 data/uploads/avatars/（Day 18 起移出 public
+ *     公开静态目录——/uploads/* 必须登录后才能访问，见 app.js 挂载的鉴权静态路由），
+ *     库内存相对路径 uploads/xxx.jpg 或 uploads/avatars/xxx.png（URL 不变，前端零改动）
  *   * 三道校验：MIME 白名单（客户端声明）→ 文件头魔数（真实内容）→ 响应头 nosniff，
  *     改后缀 / 伪装 Content-Type 的 HTML 等非图片内容会被魔数校验直接拒绝
  *   * 更深的内容检查（图片可解码性 / 尺寸上限 / 病毒扫描）按计划留到 Day 20
@@ -24,9 +25,9 @@ const path = require('path');
 const crypto = require('crypto');
 const multer = require('multer');
 
-const UPLOAD_DIR = path.join(__dirname, '../../public/uploads');
+const UPLOAD_DIR = path.join(__dirname, '../../data/uploads');
 const AVATAR_DIR = path.join(UPLOAD_DIR, 'avatars');
-const PUBLIC_DIR = path.join(__dirname, '../../public');
+const LEGACY_UPLOAD_DIR = path.join(__dirname, '../../public/uploads'); // Day 18 之前的老目录
 const MIME_EXT = { 'image/jpeg': '.jpg', 'image/png': '.png' }; // 后缀只从白名单映射，不吃原始名
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
 const MAX_PHOTOS = 3;
@@ -37,6 +38,33 @@ const JPEG_MAGIC = Buffer.from([0xff, 0xd8, 0xff]); // ÿØÿ
 
 fs.mkdirSync(UPLOAD_DIR, { recursive: true }); // uploads 已在 .gitignore，首次上传前确保目录存在
 fs.mkdirSync(AVATAR_DIR, { recursive: true });
+
+/* Day 18：老库的 public/uploads 整体迁移到 data/uploads（幂等，同名不覆盖）。
+   目录递归合并——avatars/ 等子目录在新处已存在时逐文件搬移，不能整目录跳过，
+   否则 rmSync 清理老目录时会把未搬走的文件一并删掉。
+   库里的相对路径与访问 URL 均为 uploads/... 不变，仅磁盘位置变化。 */
+function moveDirInto(fromDir, toDir) {
+  for (const entry of fs.readdirSync(fromDir)) {
+    const from = path.join(fromDir, entry);
+    const to = path.join(toDir, entry);
+    if (fs.statSync(from).isDirectory()) {
+      fs.mkdirSync(to, { recursive: true });
+      moveDirInto(from, to);
+    } else if (!fs.existsSync(to)) {
+      fs.renameSync(from, to);
+    }
+  }
+}
+
+try {
+  if (fs.existsSync(LEGACY_UPLOAD_DIR)) {
+    moveDirInto(LEGACY_UPLOAD_DIR, UPLOAD_DIR);
+    fs.rmSync(LEGACY_UPLOAD_DIR, { recursive: true, force: true });
+    console.log('[upload] 已将历史上传文件从 public/uploads 迁移至 data/uploads');
+  }
+} catch (err) {
+  console.warn('[upload] 历史上传目录迁移失败（不影响启动，可手动移动）:', err.message);
+}
 
 /** Buffer 头字节是否为 PNG / JPEG 魔数 */
 function hasImageMagic(buf) {
@@ -126,12 +154,12 @@ function cleanupAvatarFile(file) {
 
 /**
  * 删除库中记录的相对路径文件（换头像 / 撤销头像时清理旧图，尽力而为）。
- * 只接受 uploads/ 前缀，避免越权删除 public 下的其它文件。
+ * 只接受 uploads/ 前缀；文件位于 data/uploads/（Day 18 起移出公开静态目录）。
  */
 function removeStoredFile(relPath) {
   const rel = String(relPath || '');
   if (!rel.startsWith('uploads/')) return;
-  fs.unlink(path.join(PUBLIC_DIR, rel), (err) => {
+  fs.unlink(path.join(UPLOAD_DIR, rel.slice('uploads/'.length)), (err) => {
     if (err && err.code !== 'ENOENT') {
       console.warn('[upload/cleanup] 删除旧文件失败:', rel, err.message);
     }
