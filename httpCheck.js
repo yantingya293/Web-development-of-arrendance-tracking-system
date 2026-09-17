@@ -314,6 +314,47 @@ async function main() {
       const after = await request('GET', '/api/tasks', { cookie: cookieA });
       assert(after.status === 401, '登出后仍可访问');
     });
+
+    /* ---------- Day 20：安全专项 ---------- */
+    await check('CSP 响应头 + X-Powered-By 已移除', async () => {
+      const r = await request('GET', '/login');
+      const csp = r.headers.get('content-security-policy') || '';
+      assert(csp.includes("script-src 'self'"), 'CSP 缺失或不含 script-src self: ' + csp);
+      assert(csp.includes("frame-ancestors 'none'"), 'CSP 缺 frame-ancestors');
+      assert(!r.headers.get('x-powered-by'), 'X-Powered-By 仍在暴露框架指纹');
+      assert(!r.text.includes('<script>'), '页面仍有内联脚本（CSP self 下会被拦）');
+    });
+    await check('HSTS 仅 HTTPS 携带（HTTP 下不发送）', async () => {
+      const r = await request('GET', '/login');
+      assert(!r.headers.get('strict-transport-security'), 'HTTP 响应不应携带 HSTS');
+    });
+    await check('登录时序等化：不存在的账号也走 bcrypt（≥20ms）', async () => {
+      const t0 = Date.now();
+      await request('POST', '/api/auth/login', { json: { account: 'no_such_user', password: 'passw0rd1' } });
+      const ms = Date.now() - t0;
+      assert(ms >= 20, `等时未生效（${ms}ms，未含 bcrypt 比较）`);
+    });
+    await check('CSRF：跨源 Origin 被拒 / 同源放行 / 缺头放行', async () => {
+      const evil = await request('POST', '/api/tasks', {
+        cookie: cookieB,
+        json: { title: '跨站请求' },
+        headers: { Origin: 'https://evil.example' },
+      });
+      assert(evil.status === 403, '跨源 Origin status=' + evil.status);
+      const same = await request('POST', '/api/tasks', {
+        cookie: cookieB,
+        json: { title: '同源请求' },
+        headers: { Origin: BASE },
+      });
+      assert(same.status === 200 || same.status === 201, '同源 Origin 被误拒: ' + same.status);
+      const noOrigin = await request('GET', '/api/team', { cookie: cookieB });
+      assert(noOrigin.status === 200, 'GET 不受 CSRF 守卫影响');
+    });
+    await check('图片尺寸深检：伪造超大尺寸 PNG 被拒（400）', async () => {
+      const fd = multipart({ taskId, note: '超大尺寸', photos: { __file: true, bytes: makePngBytes(20000, 1), type: 'image/png', name: 'huge.png' } });
+      const r = await request('POST', '/api/checkins', { cookie: cookieB, form: fd });
+      assert(r.status === 400, '超大尺寸 status=' + r.status);
+    });
   } finally {
     child.kill();
     await new Promise((r) => setTimeout(r, 600));

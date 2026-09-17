@@ -111,7 +111,8 @@
               <p class="form-hint" id="checkinHint">打卡需至少 1 张照片；未开始的任务打卡后自动转为「进行中」。</p>
             </form>
           <% } else { %>
-            <form class="checkin-form" aria-describedby="checkinHint" onsubmit="return false;">
+            <%# Day 20：去掉内联 onsubmit（CSP script-src-attr 拦截）；阻止原生提交由 checkin.js 的 submit 监听统一处理 %>
+            <form class="checkin-form" aria-describedby="checkinHint">
               <div class="form-group">
                 <label for="checkinTaskGuest">选择任务</label>
                 <select id="checkinTaskGuest" disabled>

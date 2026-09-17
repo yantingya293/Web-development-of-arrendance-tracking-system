@@ -4,19 +4,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title><%= title %> · 学习打卡</title>
-  <script>
-    /* Day 17：首屏绘制前定主题，避免深色用户闪白（FOUC）。
-       优先读用户手选（localStorage），否则跟随系统 prefers-color-scheme。 */
-    (function () {
-      try {
-        var t = localStorage.getItem('checkin-theme');
-        if (t !== 'light' && t !== 'dark') {
-          t = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-        }
-        if (t === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
-      } catch (e) { /* 隐私模式等场景下静默回退浅色 */ }
-    })();
-  </script>
+  <!-- Day 20：主题引导外置为 /js/theme-init.js（CSP script-src 'self' 下内联脚本会被拦截）。
+       同步加载（无 defer）保证在 theme.css 应用前定好主题，避免深色用户闪白。 -->
+  <script src="/js/theme-init.js"></script>
   <link rel="stylesheet" href="/css/theme.css" />
 </head>
 <body>

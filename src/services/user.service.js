@@ -96,7 +96,12 @@ async function registerUser({ nickname, account, password }) {
 async function authenticate(account, password) {
   const acc = String(account || '').trim();
   const row = getDb().prepare('SELECT * FROM users WHERE account = ?').get(acc);
-  if (!row) return null;
+  if (!row) {
+    // Day 20：账号不存在也做等量 bcrypt 比较——与注册接口同理，抹平
+    // 「响应里有无 bcrypt 耗时」的账号存在性时序侧信道
+    await bcrypt.compare(String(password || ''), DUMMY_PASSWORD_HASH);
+    return null;
+  }
   const ok = await bcrypt.compare(String(password || ''), row.password_hash);
   return ok ? publicUser(row) : null;
 }

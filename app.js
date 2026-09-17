@@ -7,6 +7,8 @@ const { initDb } = require('./src/db/db');
 const { seedIfEmpty } = require('./src/db/seed');
 const { getSessionUser } = require('./src/services/user.service');
 const { requireAuth } = require('./src/middleware/auth');
+const { sameOriginGuard } = require('./src/middleware/csrf');
+const { createRateLimiter } = require('./src/middleware/rateLimit');
 const { UPLOAD_DIR } = require('./src/middleware/upload');
 const authRoutes = require('./src/routes/auth.routes');
 const taskRoutes = require('./src/routes/task.routes');
@@ -26,6 +28,9 @@ seedIfEmpty();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// Day 20：不暴露 Express 指纹（X-Powered-By 响应头）
+app.disable('x-powered-by');
 
 // Day 3 决策（安全加固后）：会话密钥绝不回退到源码硬编码值——
 // 源码里的默认密钥等于公开密钥，任何人都能用它伪造任意用户（含管理员）的会话 Cookie。
@@ -79,10 +84,30 @@ app.use((req, res, next) => {
 });
 
 // 基础安全响应头（nosniff：封死 MIME 嗅探型上传滥用；DENY：防点击劫持）
+// Day 20：补 CSP 与 HSTS。
+// CSP：全站脚本 / 样式 / 图片 / 接口均为同源资源（主题引导已外置为
+// /js/theme-init.js，无内联脚本与内联事件），故策略可收紧到 'self'；
+// img-src 加 data: 兜底前端可能的内联占位图。
+// HSTS：仅在 HTTPS 请求上携带（纯 HTTP 部署时浏览器会忽略，但干净起见不发）。
+const CONTENT_SECURITY_POLICY =
+  "default-src 'self'; " +
+  "script-src 'self'; " +
+  "style-src 'self'; " +
+  "img-src 'self' data:; " +
+  "connect-src 'self'; " +
+  "font-src 'self'; " +
+  "object-src 'none'; " +
+  "base-uri 'self'; " +
+  "form-action 'self'; " +
+  'frame-ancestors \'none\'';
 app.use((req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('Content-Security-Policy', CONTENT_SECURITY_POLICY);
+  if (req.secure || req.protocol === 'https') {
+    res.setHeader('Strict-Transport-Security', 'max-age=15552000; includeSubDomains');
+  }
   next();
 });
 
@@ -113,6 +138,19 @@ app.use((req, res, next) => {
   }
   next();
 });
+
+// Day 20：CSRF 防护——状态变更请求校验 Origin/Referer 同源（缺头放行，见 csrf.js 说明）
+app.use(sameOriginGuard);
+
+// Day 20：全局 API 限流（纵深兜底）——各敏感接口已有细分限流（登录/注册/改密/打卡），
+// 这里按 IP 对整个 /api 兜底，防单点滥用与脚本扫库；阈值远高于正常用量。
+const globalApiLimiter = createRateLimiter({
+  windowMs: 60 * 1000,
+  max: 300,
+  keyFn: (req) => 'global:' + req.ip,
+  message: '请求过于频繁，请稍后再试',
+});
+app.use('/api', globalApiLimiter);
 
 app.use('/api/auth', authRoutes);
 app.use('/api/tasks', taskRoutes); // Day 5：单人任务 CRUD

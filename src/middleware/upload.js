@@ -89,12 +89,77 @@ async function fileHasImageMagic(absPath) {
   }
 }
 
-/** 逐一读取已落盘文件头，返回内容不是 PNG/JPEG 的文件名列表（读取失败的文件也计入）。
- *  dir 默认打卡照片目录，头像上传传 AVATAR_DIR。 */
+/** Day 20：解析图片头部元信息（可解码性 + 尺寸上限）。
+ *  PNG：签名(0–7) + IHDR 长度(8–11) + 'IHDR'(12–15) + 宽(16–19) + 高(20–23)；
+ *  JPEG：扫描段标记直到 SOFn（C0–CF，除 C4/C8/CC）取宽高。
+ *  返回 { ok, width, height }——头不完整 / 结构损坏 / 尺寸超上限都算 !ok。 */
+const MAX_IMAGE_DIMENSION = 10000;
+
+function readImageMeta(buf) {
+  if (!buf || buf.length < 24) return { ok: false };
+  if (buf.subarray(0, 8).equals(PNG_MAGIC)) {
+    if (buf.readUInt32BE(8) !== 13 || buf.toString('ascii', 12, 16) !== 'IHDR') {
+      return { ok: false };
+    }
+    const width = buf.readUInt32BE(16);
+    const height = buf.readUInt32BE(20);
+    if (!width || !height || width > MAX_IMAGE_DIMENSION || height > MAX_IMAGE_DIMENSION) {
+      return { ok: false, width, height };
+    }
+    return { ok: true, width, height };
+  }
+  if (buf.subarray(0, 3).equals(JPEG_MAGIC)) {
+    let off = 2;
+    while (off + 9 < buf.length) {
+      if (buf[off] !== 0xff) return { ok: false }; // 标记结构损坏
+      const marker = buf[off + 1];
+      if (marker === 0xd8 || (marker >= 0xd0 && marker <= 0xd9) || marker === 0x01) {
+        off += 2; // 无长度段
+        continue;
+      }
+      const segLen = buf.readUInt16BE(off + 2);
+      if (marker >= 0xc0 && marker <= 0xcf && marker !== 0xc4 && marker !== 0xc8 && marker !== 0xcc) {
+        const height = buf.readUInt16BE(off + 5);
+        const width = buf.readUInt16BE(off + 7);
+        if (!width || !height || width > MAX_IMAGE_DIMENSION || height > MAX_IMAGE_DIMENSION) {
+          return { ok: false, width, height };
+        }
+        return { ok: true, width, height };
+      }
+      off += 2 + segLen;
+    }
+    return { ok: false }; // 没找到 SOF：截断 / 伪装文件
+  }
+  return { ok: false };
+}
+
+async function fileImageMeta(absPath) {
+  try {
+    const fh = await fs.promises.open(absPath, 'r');
+    try {
+      const buf = Buffer.alloc(64 * 1024); // JPEG 的 SOF 通常在头部附近，64KB 足够
+      const { bytesRead } = await fh.read(buf, 0, buf.length, 0);
+      return readImageMeta(buf.subarray(0, bytesRead));
+    } finally {
+      await fh.close();
+    }
+  } catch (_) {
+    return { ok: false };
+  }
+}
+
+/** 逐一读取已落盘文件头，返回「内容不是可解码 PNG/JPEG 或尺寸超限」的文件名列表
+ *  （读取失败的文件也计入）。dir 默认打卡照片目录，头像上传传 AVATAR_DIR。
+ *  Day 20 起在魔数校验之上叠加结构 / 尺寸深检。 */
 async function findNonImageFiles(files, dir = UPLOAD_DIR) {
   const bad = [];
   for (const f of files || []) {
-    if (!(await fileHasImageMagic(path.join(dir, f.filename)))) bad.push(f.filename);
+    const abs = path.join(dir, f.filename);
+    if (!(await fileHasImageMagic(abs))) {
+      bad.push(f.filename);
+      continue;
+    }
+    if (!(await fileImageMeta(abs)).ok) bad.push(f.filename);
   }
   return bad;
 }
@@ -199,6 +264,7 @@ module.exports = {
   findNonImageFiles,
   hasImageMagic,
   fileHasImageMagic,
+  readImageMeta,
   cleanupUploadedPhotos,
   cleanupAvatarFile,
   removeStoredFile,
