@@ -24,6 +24,7 @@ const {
   registerUser,
   authenticate,
   changePassword,
+  bumpSessionNotBefore,
   updateProfile,
   updateAvatar,
   clearAvatar,
@@ -120,7 +121,12 @@ router.post('/login', loginLimiter, async (req, res) => {
 });
 
 router.post('/logout', (req, res) => {
-  req.session = null; // cookie-session：置 null 即清除会话 Cookie
+  // Day 19：除清除 Cookie 外，推进 session_not_before 作废该账号全部已签发会话——
+  // cookie-session 的会话数据在 Cookie 本身，仅清 Cookie 挡不住被盗 Cookie 的重放。
+  if (req.session && req.session.userId) {
+    bumpSessionNotBefore(req.session.userId);
+  }
+  req.session = null;
   res.json({ message: '已退出登录' });
 });
 

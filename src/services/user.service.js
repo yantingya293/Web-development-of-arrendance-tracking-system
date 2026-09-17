@@ -130,6 +130,15 @@ async function changePassword(user, oldPassword, newPassword) {
 }
 
 /**
+ * 登出会话作废（Day 19，httpCheck 套件暴露）：cookie-session 的会话数据存放在
+ * Cookie 本身，登出仅清除 Cookie 挡不住「被盗 Cookie 副本的重放」——与改密同一
+ * 机制，推进 session_not_before 让该账号全部已签发会话立即失效。
+ */
+function bumpSessionNotBefore(userId) {
+  getDb().prepare('UPDATE users SET session_not_before = ? WHERE id = ?').run(Date.now(), userId);
+}
+
+/**
  * 修改昵称（Day 14）：与注册同一套昵称规则（1–20 字符，去首尾空格）。
  * 昵称不参与鉴权，改完无需重建会话——getSessionUser 每次从库里读最新行。
  */
@@ -195,6 +204,7 @@ module.exports = {
   registerUser,
   authenticate,
   changePassword,
+  bumpSessionNotBefore,
   updateProfile,
   updateAvatar,
   clearAvatar,

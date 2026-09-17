@@ -6,7 +6,8 @@
   "private": true,
   "scripts": {
     "start": "node app.js",
-    "dev": "node --watch app.js"
+    "dev": "node --watch app.js",
+    "test": "node httpCheck.js"
   },
   "engines": {
     "node": ">=20"
