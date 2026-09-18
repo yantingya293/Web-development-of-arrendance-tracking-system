@@ -1,0 +1,12 @@
+node_modules
+data
+.git
+.workbuddy
+.env
+.env.local
+*.log
+*.bundle
+httpCheck.js
+checkin-dev.bundle
+Thumbs.db
+.DS_Store

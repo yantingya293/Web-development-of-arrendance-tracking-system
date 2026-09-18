@@ -50,23 +50,40 @@ npm run dev
 2. **启用 HTTPS**：会话 Cookie 的 `Secure` 标志与 HSTS 响应头已按请求自动生效，反代终结 TLS 即可（反代需保证 `Host` 头为对外域名，CSRF 同源校验依赖它）。
 3. 数据库与上传目录（`data/`）建议纳入定时备份；升级版本后首次启动会自动执行增量迁移（幂等）。
 
+### Docker 一键部署（推荐）
+
+```bash
+cp .env.example .env      # 填写 SESSION_SECRET（强随机 ≥32 字符）与 ADMIN_PASSWORD
+docker compose up -d --build
+# 访问 http://<主机>:3000；SQLite 库与上传文件落在命名卷 app-data，升级容器数据不丢
+```
+
+镜像为 `node:22-alpine`、非 root 运行、自带健康检查；`SESSION_SECRET` 未设置时 compose 会直接拒绝启动，防止带空密钥上线。
+
 ## 目录结构
 
 ```
-├── app.js                 # 服务入口
+├── app.js                 # 服务入口（安全响应头 / CSRF / 限流 / 会话守卫）
+├── dbCheck.js             # 服务层验收脚本（59 项，事务回滚）
+├── httpCheck.js           # HTTP 层验收脚本（25 项，真实进程端到端）
+├── Dockerfile             # 生产镜像（node:22-alpine，非 root，数据卷 + 健康检查）
+├── docker-compose.yml     # 一键生产部署（密钥强制校验 + 数据卷）
+├── scripts/
+│   └── dev-clean.js       # 开发测试账号清理工具（预览 + --yes 确认）
 ├── views/                 # EJS 模板
-│   ├── partials/          # 公共布局（header / footer）
+│   ├── partials/          # 公共布局（header / footer / avatar）
 │   │   └── components/    # 通用组件（loading / empty / toast）
-│   └── index.ejs          # 首页四板块骨架
+│   └── index.ejs          # 首页四板块
 ├── public/
-│   ├── css/               # 样式（theme.css 统一主题与设计变量）
-│   ├── js/                # 前端脚本（app.js 公共交互与首页动态 / auth.js 认证表单 / tasks.js 单人任务板块 / checkin.js 打卡表单 / history.js 历史记录页 / me.js 个人中心 / admin.js 管理后台）
-│   └── uploads/           # 打卡照片与头像上传目录（multer 落盘，git 忽略；头像在 uploads/avatars/）
+│   ├── css/               # theme.css（设计变量 + 深色模式 + 响应式断点）
+│   ├── js/                # 前端脚本（app.js 公共 / auth.js / tasks.js / checkin.js / duo.js / duo-home.js / history.js / gallery.js / me.js / admin.js / theme-init.js 主题引导）
+│   └── uploads/           # 兼容旧路径：首次启动自动迁移到 data/uploads
+├── data/                  # 运行时数据（SQLite 库 + 上传文件，git 忽略）
 └── src/
     ├── routes/            # 路由层
     ├── services/          # 业务逻辑层
-    ├── db/                # 数据库（schema / 连接 / seed）
-    └── middleware/        # 鉴权等中间件
+    ├── db/                # 数据库（schema / 连接与迁移 / seed）
+    └── middleware/        # auth / csrf / rateLimit / upload
 ```
 
 ## 项目里程碑（21 工作日）
@@ -77,7 +94,11 @@ npm run dev
 - M3 扩展与打磨（Day 13–18）：数据统计 / 个人中心 / 响应式 / UI
 - M4 验收与交付（Day 19–21）：测试 / 安全 / 文档 / 部署
 
-当前进度：**Day 21 · 二次渗透测试修复（M4 收官）**。
+当前进度：**✅ v1.0.0 项目交付（21 天里程碑全部完成，两轮外部渗透测试闭环）**。
+
+交付验收基线：`npm run verify`（dbCheck 59 项 + httpCheck 25 项）全过、`npm audit --omit=dev` 零告警、
+Docker 一键部署可用。遗留 P2（有意延后，见 SECURITY_AUDIT.md 第七节）：Express 5 迁移、
+图片全量解码 / 病毒扫描、注册枚举响应文案（产品取舍）。
 
 - ✅ Day 2：SQLite 数据层 —— 七张表（users / tasks / checkins / teams / duo_tasks / duo_checkins / notifications）+ `src/db/db.js` 封装 + 种子数据；运行 `node dbCheck.js` 可验证（检查项随里程碑递增，Day 15 为 58 项）
 - ✅ Day 3：用户系统 —— 注册 / 登录 / 登出 / `me` 接口，bcrypt 密码哈希，Cookie+Session（7 天，httpOnly / SameSite=Lax），`requireAuth` / `requireAdmin` 中间件，登录 / 注册页面（客户端 + 服务端双重校验），首页用户区与登出，`/admin` 后台占位页（仅管理员）

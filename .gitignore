@@ -1,9 +1,10 @@
 # 依赖
 node_modules/
 
-# 上传图片与本地存储
+# 上传图片与本地存储（data/ 含 SQLite 库、上传文件与本地备份，全部不入库）
 uploads/
 public/uploads/
+data/
 
 # SQLite 数据库
 *.db

@@ -1,0 +1,23 @@
+# 学习打卡网页 · 一键生产部署（Day 21 交付）
+#
+# 用法：
+#   1. cp .env.example .env 并填写 SESSION_SECRET（强随机）与 ADMIN_PASSWORD
+#   2. docker compose up -d --build
+#   3. 浏览器访问 http://<主机>:3000；数据落在命名卷 app-data（含 SQLite 库与上传文件）
+#
+# SESSION_SECRET 使用 :? 强制校验——未设置时 compose 直接报错，防止带空密钥上线。
+services:
+  app:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: production
+      SESSION_SECRET: ${SESSION_SECRET:?请在 .env 中设置强随机的 SESSION_SECRET（至少 32 字符）}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+    volumes:
+      - app-data:/app/data
+    restart: unless-stopped
+
+volumes:
+  app-data:
