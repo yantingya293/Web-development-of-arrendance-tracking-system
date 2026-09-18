@@ -10,6 +10,8 @@
  *   Day 5  tasks 表补 category 列（daily / weekly / question），
  *          老库按种子数据旧标题前缀（每日任务：/ 每周重点：/ 学习问题：）回填分类
  *   安全加固 users 表补 session_not_before 列（ms 纪元；改密时推进，作废更早签发的会话）
+ *   Day 21 checkins 表补 day 列（按 submitted_at 回填）+ 历史重复打卡去重 +
+ *          唯一索引 idx_checkins_daily(task_id, user_id, day)，对齐双人打卡每日一次口径
  */
 const fs = require('fs');
 const path = require('path');
@@ -69,12 +71,43 @@ function migrateUsersSessionNotBefore(conn) {
   return true;
 }
 
+/**
+ * Day 21 迁移：老库 checkins 表补 day 列（每日一次约束用，新库由 schema.sql 直接建出）。
+ * SQLite 的 ADD COLUMN 不接受 date() 这类非常量默认值，故加可空列后按 submitted_at
+ * 回填，并先去重再建唯一索引——同一 (user_id, task_id, day) 保留最早一条，
+ * 其余删除（历史测试产生的重复打卡会导致唯一索引建立失败）。
+ */
+function migrateCheckinsDay(conn) {
+  const hasColumn = conn
+    .prepare("SELECT 1 FROM pragma_table_info('checkins') WHERE name = 'day'")
+    .get();
+  if (hasColumn) return false;
+
+  conn.exec('ALTER TABLE checkins ADD COLUMN day TEXT');
+  conn.exec("UPDATE checkins SET day = substr(submitted_at, 1, 10)");
+  const dedupe = conn.prepare(
+    `DELETE FROM checkins WHERE id NOT IN (
+       SELECT MIN(id) FROM checkins GROUP BY user_id, task_id, day
+     )`
+  );
+  const removed = dedupe.run().changes;
+  if (removed > 0) {
+    console.log(`[migrate] checkins 历史重复打卡已去重：删除 ${removed} 条（每组保留最早一条）`);
+  }
+  return true;
+}
+
 function initDb() {
   const conn = getDb();
   const schema = fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf-8');
   conn.exec(schema);
   migrateTasksCategory(conn);
   migrateUsersSessionNotBefore(conn);
+  migrateCheckinsDay(conn);
+  // 唯一索引在迁移完成后创建（老库需先补 day 列，schema.sql 中不能无条件建它）
+  conn.exec(
+    'CREATE UNIQUE INDEX IF NOT EXISTS idx_checkins_daily ON checkins(task_id, user_id, day)'
+  );
   return conn;
 }
 

@@ -37,7 +37,8 @@ CREATE TABLE IF NOT EXISTS tasks (
 CREATE INDEX IF NOT EXISTS idx_tasks_owner    ON tasks(owner_id);
 CREATE INDEX IF NOT EXISTS idx_tasks_deadline ON tasks(deadline);
 
--- 个人打卡表
+-- 个人打卡表（同一用户对同一任务每天仅可打卡一次，Day 21 对齐双人打卡口径；
+-- 唯一索引 idx_checkins_daily 由 db.js 在迁移完成后创建——老库需先补 day 列再建索引）
 CREATE TABLE IF NOT EXISTS checkins (
   id           INTEGER PRIMARY KEY AUTOINCREMENT,
   user_id      INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -48,7 +49,8 @@ CREATE TABLE IF NOT EXISTS checkins (
   note         TEXT    NOT NULL DEFAULT '',
   submitted_at TEXT    NOT NULL DEFAULT (datetime('now', 'localtime')),
   is_overdue   INTEGER NOT NULL DEFAULT 0
-               CHECK (is_overdue IN (0, 1))          -- 提交时间晚于任务截止 = 1（逾期）
+               CHECK (is_overdue IN (0, 1)),          -- 提交时间晚于任务截止 = 1（逾期）
+  day          TEXT    NOT NULL DEFAULT (date('now', 'localtime'))  -- 'YYYY-MM-DD'，每日一次约束用
 );
 CREATE INDEX IF NOT EXISTS idx_checkins_user ON checkins(user_id, submitted_at);
 CREATE INDEX IF NOT EXISTS idx_checkins_task ON checkins(task_id);

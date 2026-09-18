@@ -222,6 +222,11 @@ async function main() {
       const yes = await request('GET', '/' + photoRel, { cookie: cookieA });
       assert(yes.status === 200 && yes.headers.get('content-type') === 'image/png', '登录态应可读原图');
     });
+    await check('同任务同日重复打卡 → 409（每日一次，Day 21）', async () => {
+      const fd = multipart({ taskId, note: '重复打卡', photos: { __file: true, bytes: VALID_PNG, type: 'image/png', name: 'dup.png' } });
+      const r = await request('POST', '/api/checkins', { cookie: cookieA, form: fd });
+      assert(r.status === 409 && /今天已对该任务打卡/.test(r.text), 'status=' + r.status + ' ' + r.text.slice(0, 120));
+    });
 
     /* ---------- 广场 ---------- */
     await check('广场列表 + limit 小数取整钳制（不 500）', async () => {

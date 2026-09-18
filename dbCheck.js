@@ -15,6 +15,7 @@
  *          管理员后台（概览统计口径 / 用户搜索分页 / 公共任务 CRUD，3 项）
  * 安全加固：改密与会话作废 / 上传魔数校验（3 项，检查器支持 async）
  * Day 15：安全加固（公共任务状态收权 / 回跳消毒 / 注册同形等时 / 删除清理照片×2 / 分页取整，6 项）
+ * Day 21：单人打卡每日一次（同任务同日重复 409，1 项）
  *
  * 运行：node dbCheck.js
  * 说明：探针写入全部包在一个事务里并在结束时 ROLLBACK，不会污染数据文件
@@ -297,6 +298,25 @@ async function main() {
         caught2 = err;
       }
       if (!caught2 || caught2.status !== 400 || !caught2.errors.note) throw new Error('备注超长未按预期抛 400');
+    });
+    await check('checkin.service 同任务同日重复打卡 409（对齐双人口径，Day 21）', () => {
+      let caught;
+      try {
+        checkinService.createSoloCheckin(userA, {
+          taskId: day6TaskId,
+          note: '第二次',
+          photos: ['uploads/dbcheck-dup.jpg'],
+        });
+      } catch (err) {
+        caught = err;
+      }
+      if (!caught || caught.status !== 409 || !/今天已对该任务打卡/.test(caught.message)) {
+        throw new Error('同任务同日重复打卡未被拒: ' + (caught && caught.message));
+      }
+      const n = db
+        .prepare(`SELECT COUNT(*) AS n FROM checkins WHERE user_id = ? AND task_id = ?`)
+        .get(userA.id, day6TaskId).n;
+      if (n !== 1) throw new Error(`重复打卡被拒后仍应只有 1 条记录，实际 ${n}`);
     });
     await check('checkin.service 越权防护（他人任务按不存在处理）', () => {
       let caught;

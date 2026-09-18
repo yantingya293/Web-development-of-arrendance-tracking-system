@@ -114,8 +114,8 @@ app.use((req, res, next) => {
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ limit: '1mb', extended: true }));
 // Day 18：打卡照片与头像移出公开静态目录——/uploads/* 必须登录后才能访问。
 // 存储目录在 data/uploads（upload.js 启动时自动把老 public/uploads 迁移过去），
 // express.static 自带路径穿越防护，requireAuth 在其前统一挡未登录请求。
@@ -173,15 +173,31 @@ app.use((req, res) => {
 });
 
 // 统一错误处理
+// Day 21：尊重错误对象自带的 status（body-parser 的 400/413、multer/框架错误等），
+// 不再把可预期的客户端错误一律 500；5xx 一律收敛为通用文案避免泄漏内部细节。
 // eslint-disable-next-line no-unused-vars
 app.use((err, req, res, next) => {
   console.error('[error]', err);
+  const parsed = Number(err && (err.status || err.statusCode));
+  const status = Number.isInteger(parsed) && parsed >= 400 && parsed < 600 ? parsed : 500;
+  const message = status >= 500 ? '服务器开小差了，请稍后再试。' : err.message || '请求不合法';
   if (req.path.startsWith('/api/')) {
-    return res.status(500).json({ message: '服务器内部错误' });
+    return res.status(status).json({ message });
   }
-  res.status(500).render('error', { title: '服务器错误', code: 500, message: '服务器开小差了，请稍后再试。' });
+  res.status(status).render('error', {
+    title: status >= 500 ? '服务器错误' : '请求无效',
+    code: status,
+    message,
+  });
 });
 
-app.listen(PORT, () => {
-  console.log(`学习打卡网页已启动: http://localhost:${PORT}`);
+const HOST = process.env.HOST || (process.env.NODE_ENV === 'production' ? '0.0.0.0' : '127.0.0.1');
+app.listen(PORT, HOST, () => {
+  // Day 21：开发模式默认只绑本机回环——开发实例带默认便利口令，不应意外暴露到局域网
+  console.log(
+    `学习打卡网页已启动: http://localhost:${PORT}` +
+      (HOST === '127.0.0.1'
+        ? '（开发模式仅本机可访问；如需局域网/虚拟机访问请设 HOST=0.0.0.0）'
+        : `（监听 ${HOST}:${PORT}）`)
+  );
 });

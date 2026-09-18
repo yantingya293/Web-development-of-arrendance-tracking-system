@@ -40,8 +40,15 @@ npm run dev
 | 变量 | 默认 | 说明 |
 | --- | --- | --- |
 | `PORT` | `3000` | 服务端口 |
+| `HOST` | 开发 `127.0.0.1` / 生产 `0.0.0.0` | 监听地址。开发模式默认只绑本机回环（避免开发实例带便利口令暴露局域网），需局域网/虚拟机访问时设 `0.0.0.0` |
 | `SESSION_SECRET` | 无 | Session 密钥，部署时必须设置为随机长字符串 |
 | `DB_PATH` | `data/app.db` | SQLite 数据库文件路径（Day2 引入） |
+
+### 生产部署要点（Day 21）
+
+1. **务必以生产模式运行**：`NODE_ENV=production` + 设置强随机的 `SESSION_SECRET` 与 `ADMIN_PASSWORD`——生产模式未设 `SESSION_SECRET` 拒绝启动、未设 `ADMIN_PASSWORD` 自动生成一次性随机密码打印在启动日志；开发模式的便利口令（admin123）只应存在于本机回环上。
+2. **启用 HTTPS**：会话 Cookie 的 `Secure` 标志与 HSTS 响应头已按请求自动生效，反代终结 TLS 即可（反代需保证 `Host` 头为对外域名，CSRF 同源校验依赖它）。
+3. 数据库与上传目录（`data/`）建议纳入定时备份；升级版本后首次启动会自动执行增量迁移（幂等）。
 
 ## 目录结构
 
@@ -70,7 +77,7 @@ npm run dev
 - M3 扩展与打磨（Day 13–18）：数据统计 / 个人中心 / 响应式 / UI
 - M4 验收与交付（Day 19–21）：测试 / 安全 / 文档 / 部署
 
-当前进度：**Day 20 · 安全专项收官（CSP / CSRF / 纵深加固，M4 进行中）**。
+当前进度：**Day 21 · 二次渗透测试修复（M4 收官）**。
 
 - ✅ Day 2：SQLite 数据层 —— 七张表（users / tasks / checkins / teams / duo_tasks / duo_checkins / notifications）+ `src/db/db.js` 封装 + 种子数据；运行 `node dbCheck.js` 可验证（检查项随里程碑递增，Day 15 为 58 项）
 - ✅ Day 3：用户系统 —— 注册 / 登录 / 登出 / `me` 接口，bcrypt 密码哈希，Cookie+Session（7 天，httpOnly / SameSite=Lax），`requireAuth` / `requireAdmin` 中间件，登录 / 注册页面（客户端 + 服务端双重校验），首页用户区与登出，`/admin` 后台占位页（仅管理员）
@@ -91,3 +98,4 @@ npm run dev
 - ✅ Day 18：照片鉴权访问（P1 安全收口，M3 收官）—— 上传文件整体移出公开静态目录：存储目录从 `public/uploads` 迁至 `data/uploads`（`.gitignore` 既有 `uploads/` 通配继续生效，库内相对路径与访问 URL 保持 `uploads/...` 不变，前端零改动）；`app.js` 在 public 静态之前挂载 `app.use('/uploads', requireAuth, express.static(UPLOAD_DIR))`——打卡照片与头像必须登录后才能访问（借力 `express.static` 自带的路径穿越防护，且优先于 public 挂载，旧文件残留也不会被直出）；`upload.js` 启动时把老 `public/uploads` 递归合并迁移到新目录（幂等、同名不覆盖，子目录逐文件搬移避免整目录跳过导致文件被清理逻辑误删），老目录迁移后删除；`removeStoredFile` 清理基准同步改到新目录；实测通过：未登录访问照片 / 头像目录 401、登录后 200 `image/png`、`/uploads/../` 穿越探测 404、真实 multipart 上传落盘新目录、历史照片自动迁移完好、幂等重跑无副作用；`dbCheck.js` 照片清理探针改用新目录，58 项全过
 - ✅ Day 19：HTTP 层验收套件（M4 开篇）—— 新增 `httpCheck.js`（`npm test`）：以临时数据库 + 独立端口拉起真实 `app.js` 子进程，用 Node 内置 fetch / FormData / Blob（零新依赖）在真实 HTTP 栈上做端到端验收，与 `dbCheck.js` 服务层探针互补；19 项覆盖：页面可达、安全响应头基线（nosniff / X-Frame-Options / Referrer-Policy）、鉴权守卫（未登录 401 / 未知 API 404）、注册（成功 / 表单 400 / 重复 409 同形 + 等时≥20ms）、登录（失败统一文案 / 成功下发 Cookie / me 回读）、单人任务 CRUD 与状态机（overdue 不可手动设置）、multipart 打卡上传 + 照片鉴权（未登录 401 / 登录 200 image/png）、广场分页取整钳制、双人全链路（邀请→接受→共同任务→双人打卡→协作统计）、管理员守卫（403/200）与公共任务管理、登录回跳消毒、登出后会话失效、临时库与测试照片用后即清；套件暴露并修复真实弱点：登出原本仅清除 Cookie，被盗 Cookie 副本可重放复用——现登出时推进 `session_not_before` 作废该账号全部已签发会话（与改密同一机制，`user.service.bumpSessionNotBefore`）
 - ✅ Day 20：安全专项收官（M4）—— 原计划 Day 20 的 P1 加固项全部落地：**CSP** 内容安全策略（`default-src 'self'` 全同源收紧，脚本 / 样式 / 图片 / 连接 / 字体逐类声明，`object-src 'none'` + `frame-ancestors 'none'` + `base-uri` / `form-action`；为此把 header 的主题引导内联脚本外置为 `/js/theme-init.js`、移除打卡表单的内联 `onsubmit` 事件——全站不再有内联脚本）；**HSTS** 仅在 HTTPS 请求上携带（`max-age=180 天 + includeSubDomains`），纯 HTTP 部署不发送；**关 X-Powered-By** 不再暴露 Express 指纹；**CSRF 防护**（新增 `src/middleware/csrf.js`）：全部状态变更方法校验 Origin / Referer 同源，跨源 403、缺头放行（非浏览器客户端不受影响），与 SameSite=Lax 形成纵深；**登录时序等化**：账号不存在也执行等量 bcrypt 比较，抹平登录接口的账号存在性时序侧信道（与注册接口同口径）；**全局 API 限流**：按 IP 对 `/api` 整体兜底（300 次 / 分钟，`429 + Retry-After`），与登录 / 注册 / 打卡等细分限流形成两层；**图片深度校验**：`findNonImageFiles` 在魔数之上叠加结构解析（PNG IHDR 宽高 / JPEG SOFn 扫描），伪造超大尺寸（>10000px）或结构损坏的图片 400 拒绝；`httpCheck.js` 升级至 24 项（新增 CSP / HSTS / 指纹 / CSRF 三态 / 登录时序 / 深检拒绝探针），浏览器实测 CSP 策略下深色主题、样式、受控照片渲染全部正常
+- ✅ Day 21：二次渗透测试修复（M4 收官）—— Strix 黑盒复测（1 高 / 1 中 / 1 低）逐项处置：**单人打卡每日一次约束**（中危，对齐双人打卡口径）：`checkins` 表迁移补 `day` 列（SQLite ADD COLUMN 不接受 date() 默认值，先加可空列再按 `submitted_at` 回填），唯一索引 `idx_checkins_daily(task_id, user_id, day)` 在迁移完成后创建，历史重复数据先去重（每组保留最早一条）再建索引，服务层友好 409「今天已对该任务打卡」前置 + 唯一索引兜底并发，打卡被拒时路由既有 `cleanupUploadedPhotos` 保证不留孤儿文件；**开发实例默认只绑本机回环**（高危的根源治理）：`HOST` 环境变量新增，开发模式默认 `127.0.0.1`、生产默认 `0.0.0.0`，显式设置优先——开发便利口令（admin123）从此结构上无法暴露到局域网，黑盒测试需局域网访问时显式设 `HOST=0.0.0.0`；**错误处理收敛**：统一错误中间件尊重 `err.status / statusCode`（body-parser 400/413、multer 错误等不再一律 500），5xx 收敛为通用文案，`express.json / urlencoded` 显式 1MB 体积上限；**照片逐文件属主校验（低危）判定为 by design 不修**：全部上传类别（单人/双人照片、头像）本就经广场与搭档功能向全体登录用户展示，不存在仅属主可见的类别，边界即「登录可见」（未登录 401 已实测）；隐私文案修正（双人打卡备注「搭档可见」→「会展示在全员打卡广场」）；新增「生产部署要点」文档节（生产模式三件套 / HTTPS 与 Secure Cookie 自动生效 / 备份与迁移说明）；`dbCheck.js` 升级至 59 项（同任务同日重复打卡 409 探针），`httpCheck.js` 升级至 25 项
