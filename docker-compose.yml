@@ -8,7 +8,12 @@
 # SESSION_SECRET 使用 :? 强制校验——未设置时 compose 直接报错，防止带空密钥上线。
 services:
   app:
-    build: .
+    build:
+      context: .
+      # 国内网络默认走清华 apk 镜像源（官方 CDN 常超时）；海外部署改回
+      # https://dl-cdn.alpinelinux.org 或在 .env 里设 ALPINE_MIRROR 覆盖
+      args:
+        ALPINE_MIRROR: ${ALPINE_MIRROR:-https://mirrors.tuna.tsinghua.edu.cn}
     ports:
       - "3000:3000"
     environment:
