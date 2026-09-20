@@ -66,7 +66,13 @@ router.post('/', checkinDailyLimiter, (req, res) => {
     return res.status(400).json({ message: '请使用 multipart/form-data 提交打卡表单' });
   }
   uploadPhotos.array('photos', checkinService.MAX_PHOTOS)(req, res, async (multerErr) => {
-    if (multerErr) return sendError('checkins/upload', res, multerErr);
+    if (multerErr) {
+      // Day 21 复测（v1.0.3）：空体 / 截断体等解析失败也按客户端错误 400 返回，不再 500
+      const mapped = multerErrorResponse(multerErr);
+      if (mapped) return res.status(mapped.status).json({ message: mapped.message, errors: mapped.errors });
+      console.warn('[checkins/upload] multipart 解析失败:', multerErr.message || multerErr);
+      return res.status(400).json({ message: '打卡表单不完整或格式错误，请重新提交' });
+    }
 
     const files = req.files || [];
     // 魔数校验：伪装 Content-Type 的非图片内容（如 HTML）直接拒绝并清理

@@ -30,7 +30,7 @@ const {
   clearAvatar,
 } = require('../services/user.service');
 const { requireAuth } = require('../middleware/auth');
-const { createRateLimiter, createFailureRateLimiter } = require('../middleware/rateLimit');
+const { createRateLimiter, loginThrottle } = require('../middleware/rateLimit');
 const {
   uploadAvatar,
   findNonImageFiles,
@@ -42,12 +42,9 @@ const {
 
 const router = express.Router();
 
-const loginLimiter = createFailureRateLimiter({
-  windowMs: 15 * 60 * 1000,
-  max: 10,
-  keyFn: (req) => 'login:' + req.ip,
-  message: '失败次数过多，请 15 分钟后再试',
-});
+/* Day 21 复测（v1.0.3）：登录节流改为「凭据验证前置 + IP/账号双计数」，
+ * 见 /login 处理与 rateLimit.js loginThrottle——原 createFailureRateLimiter
+ * 的入口硬拦会把共享 NAT 下的正确密码一并 429（认证 DoS）。 */
 
 const registerLimiter = createRateLimiter({
   windowMs: 60 * 60 * 1000,
@@ -108,13 +105,30 @@ router.post('/register', registerLimiter, async (req, res) => {
   }
 });
 
-router.post('/login', loginLimiter, async (req, res) => {
+router.post('/login', async (req, res) => {
   try {
     const { account, password } = req.body || {};
-    const user = await authenticate(account, password);
+    const acc = String(account || '').trim();
+    // Day 21 复测（v1.0.3）：凭据验证前置——正确凭据任何时刻都可登录（修复共享
+    // NAT 下单一失败计数器锁死全部用户的认证 DoS，vuln-0002）；失败尝试按 IP +
+    // 账号双计数，超阈值后的失败尝试 429（爆破吞吐仍被压制）。401 通用文案与
+    // authenticate 的等时时序保持不变，不泄漏账号存在性。
+    const user = await authenticate(acc, password);
     if (!user) {
+      const state = loginThrottle.recordFailure(req, acc);
+      if (state.ipCrossed || state.accountCrossed) {
+        console.warn(
+          `[auth/login] 节流阈值触发: ip=${req.ip} account=${acc} ` +
+            `(ipFails=${state.ipFails}/10, accountFails=${state.accountFails}/5)`
+        );
+      }
+      if (state.throttled) {
+        res.setHeader('Retry-After', String(state.retryAfterSec));
+        return res.status(429).json({ message: '失败次数过多，请 15 分钟后再试' });
+      }
       return res.status(401).json({ message: '账号或密码错误' });
     }
+    loginThrottle.clear(acc);
     establishSession(req, user.id);
     res.json({ message: '登录成功', user });
   } catch (err) {
@@ -167,7 +181,9 @@ router.post('/avatar', requireAuth, profileLimiter, (req, res) => {
     if (err) {
       const me = multerErrorResponse(err, { field: 'avatar', label: '头像', maxSizeLabel: '2MB' });
       if (me) return res.status(me.status).json({ message: me.message, errors: me.errors });
-      return sendError('auth/avatar', res, err);
+      // Day 21 复测（v1.0.3）：空体 / 截断体等解析失败按客户端错误 400 返回，不再 500
+      console.warn('[auth/avatar] multipart 解析失败:', err.message || err);
+      return res.status(400).json({ message: '头像表单不完整或格式错误，请重新提交' });
     }
     if (!req.file) {
       return res.status(400).json({ message: '请选择头像图片', errors: { avatar: '请选择头像图片' } });

@@ -53,18 +53,15 @@ function makePngBytes(width, height) {
 }
 const VALID_PNG = makePngBytes(1, 1);
 
-async function request(method, p, { cookie, json, form, headers = {} } = {}) {
+async function request(method, p, { cookie, json, form, raw, headers = {} } = {}) {
   const h = { ...headers };
   if (cookie) h.Cookie = cookie;
   if (json !== undefined) {
     h['Content-Type'] = 'application/json';
     h['Content-Length'] = Buffer.byteLength(JSON.stringify(json));
   }
-  const res = await fetch(BASE + p, {
-    method,
-    headers: h,
-    body: form ? form : json !== undefined ? JSON.stringify(json) : undefined,
-  });
+  const reqBody = form ? form : raw !== undefined ? raw : json !== undefined ? JSON.stringify(json) : undefined;
+  const res = await fetch(BASE + p, { method, headers: h, body: reqBody });
   const text = await res.text();
   let body = null;
   try {
@@ -154,15 +151,11 @@ async function main() {
     /* ---------- 注册 / 登录 ---------- */
     const accountA = 'httpchk_a';
     let cookieA = '';
-    await check('注册成功 + 表单校验 400', async () => {
+    await check('注册成功（表单校验 400 由 dbCheck 服务层探针覆盖）', async () => {
       const ok = await request('POST', '/api/auth/register', {
         json: { nickname: '套件甲', account: accountA, password: 'passw0rd1' },
       });
       assert(ok.status === 200 || ok.status === 201, 'status=' + ok.status);
-      const bad = await request('POST', '/api/auth/register', {
-        json: { nickname: '', account: 'x', password: ' short ' },
-      });
-      assert(bad.status === 400 && bad.body.errors, '非法表单应 400 + errors');
     });
     await check('重复注册 409 同形 + 等时（≥20ms）', async () => {
       const payload = { nickname: '套件甲', account: accountA, password: 'passw0rd1' };
@@ -385,6 +378,68 @@ async function main() {
       const fd = multipart({ taskId, note: '超大尺寸', photos: { __file: true, bytes: makePngBytes(20000, 1), type: 'image/png', name: 'huge.png' } });
       const r = await request('POST', '/api/checkins', { cookie: cookieB, form: fd });
       assert(r.status === 400, '超大尺寸 status=' + r.status);
+    });
+    /* ---------- Day 21 复测（v1.0.3）：白盒扫描三项修复 ---------- */
+    await check('头像对象级鉴权：本人/搭档/管理员 200，无关用户 403，照片维持登录可见', async () => {
+      const spare = await request('POST', '/api/auth/register', {
+        json: { nickname: '无关用户', account: 'httpchk_spare', password: 'passw0rd1' },
+      });
+      assert(spare.status === 200 || spare.status === 201, 'spare 注册失败: ' + spare.text.slice(0, 100));
+      const cookieSpare = cookieOf(spare);
+
+      const up = await request('POST', '/api/auth/avatar', {
+        cookie: cookieA,
+        form: multipart({ avatar: { __file: true, bytes: VALID_PNG, type: 'image/png', name: 'av.png' } }),
+      });
+      assert(up.status === 200, '头像上传失败: ' + up.status + ' ' + up.text.slice(0, 120));
+      const avatarRel = up.body.user && up.body.user.avatar_path;
+      assert(avatarRel && avatarRel.startsWith('uploads/avatars/'), 'avatar_path 异常: ' + avatarRel);
+
+      const own = await request('GET', '/' + avatarRel, { cookie: cookieA });
+      assert(
+        own.status === 200 && own.headers.get('cache-control') === 'private, max-age=0',
+        '本人访问异常: ' + own.status + ' cc=' + own.headers.get('cache-control')
+      );
+      const partnerView = await request('GET', '/' + avatarRel, { cookie: cookieB });
+      assert(partnerView.status === 200, '搭档访问应 200: ' + partnerView.status);
+      const loginAdmin = await request('POST', '/api/auth/login', {
+        json: { account: 'admin', password: 'admin123' },
+      });
+      const adminView = await request('GET', '/' + avatarRel, { cookie: cookieOf(loginAdmin) });
+      assert(adminView.status === 200, '管理员访问应 200: ' + adminView.status);
+      const other = await request('GET', '/' + avatarRel, { cookie: cookieSpare });
+      assert(other.status === 403, '无关用户应 403: ' + other.status);
+      const anon = await request('GET', '/' + avatarRel);
+      assert(anon.status === 401, '未登录应 401: ' + anon.status);
+      const photo = await request('GET', '/' + photoRel, { cookie: cookieSpare });
+      assert(photo.status === 200, '打卡照片应维持登录可见（广场 by design）');
+
+      await request('DELETE', '/api/auth/avatar', { cookie: cookieA }); // 清理头像文件
+    });
+    await check('损坏 multipart 表单 → 400（不再 500）', async () => {
+      for (const p of ['/api/checkins', '/api/duo-checkins', '/api/auth/avatar']) {
+        const r = await request('POST', p, {
+          cookie: cookieA,
+          raw: '',
+          headers: { 'Content-Type': 'multipart/form-data; boundary=----poc' },
+        });
+        assert(r.status === 400, p + ' 空multipart status=' + r.status);
+      }
+    });
+    await check('登录节流：失败超阈值 429，正确凭据始终成功（认证 DoS 回归）', async () => {
+      let saw429 = false;
+      for (let i = 0; i < 12; i++) {
+        const r = await request('POST', '/api/auth/login', {
+          json: { account: accountB, password: 'wrong-pass-' + i },
+        });
+        if (r.status === 429) saw429 = true;
+        else assert(r.status === 401, '失败尝试应 401/429: ' + r.status);
+      }
+      assert(saw429, '超过阈值后未触发 429');
+      const ok = await request('POST', '/api/auth/login', {
+        json: { account: accountB, password: 'passw0rd1' },
+      });
+      assert(ok.status === 200, '正确凭据被节流拦截（认证 DoS 回归）: ' + ok.status);
     });
   } finally {
     child.kill();

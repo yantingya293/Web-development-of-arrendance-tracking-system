@@ -81,4 +81,67 @@ function createFailureRateLimiter({ windowMs, max, keyFn, message, failStatus = 
   };
 }
 
-module.exports = { createRateLimiter, createFailureRateLimiter };
+/* ---------- Day 21 复测（v1.0.3）：登录节流（IP + 账号双计数，凭据验证前置） ----------
+ * 修复渗透测试 vuln-0002（认证 DoS）：原先单一「按 IP 失败计数 + 入口硬拦」会把共享
+ * NAT（校园网 / 宿舍出口）下的全部用户锁死，且正确密码也被 429。
+ * 新模型：登录路由先验证凭据——成功永远放行并清空对应账号桶；仅对「失败尝试」
+ * 按 IP（10 次 / 15 分钟）与按账号（5 次 / 15 分钟）双计数，超阈值后的失败尝试
+ * 返回 429。在线爆破吞吐仍被压制（429 快速拒绝 + /api 全局限流钳制 bcrypt 成本），
+ * 但正确凭据任何时刻都可登录。通用文案与等时时序维持不变（不泄漏账号存在性）。 */
+const LOGIN_WINDOW_MS = 15 * 60 * 1000;
+const LOGIN_IP_MAX = 10;
+const LOGIN_ACCOUNT_MAX = 5;
+
+function loginBucket(key, now) {
+  let b = buckets.get(key);
+  if (!b || now > b.resetAt) {
+    b = { count: 0, resetAt: now + LOGIN_WINDOW_MS };
+    buckets.set(key, b);
+  }
+  return b;
+}
+
+/** 记录一次登录失败，返回 { throttled, retryAfterSec }：
+ *  throttled = 该 IP 或该账号的失败数超出阈值（之后的失败尝试返回 429）。 */
+function recordLoginFailure(req, account) {
+  const now = Date.now();
+  const ipBucket = loginBucket('login-ip:' + req.ip, now);
+  const acctBucket = loginBucket('login-acct:' + String(account || '').toLowerCase(), now);
+  ipBucket.count += 1;
+  acctBucket.count += 1;
+  const throttled = ipBucket.count > LOGIN_IP_MAX || acctBucket.count > LOGIN_ACCOUNT_MAX;
+  return {
+    throttled,
+    retryAfterSec: Math.max(1, Math.ceil((ipBucket.resetAt - now) / 1000)),
+    ipCrossed: ipBucket.count === LOGIN_IP_MAX + 1,
+    accountCrossed: acctBucket.count === LOGIN_ACCOUNT_MAX + 1,
+  };
+}
+
+/** 登录成功：清空该账号的失败桶（该账号此前的失败尝试不再累积）。 */
+function clearLoginFailures(account) {
+  buckets.delete('login-acct:' + String(account || '').toLowerCase());
+}
+
+/** 只读快照（供监控 / 测试）。 */
+function loginThrottleSnapshot(req, account) {
+  const now = Date.now();
+  const ip = buckets.get('login-ip:' + req.ip);
+  const acct = buckets.get('login-acct:' + String(account || '').toLowerCase());
+  return {
+    ipFails: ip && now <= ip.resetAt ? ip.count : 0,
+    accountFails: acct && now <= acct.resetAt ? acct.count : 0,
+  };
+}
+
+module.exports = {
+  createRateLimiter,
+  createFailureRateLimiter,
+  loginThrottle: {
+    LOGIN_IP_MAX,
+    LOGIN_ACCOUNT_MAX,
+    recordFailure: recordLoginFailure,
+    clear: clearLoginFailures,
+    snapshot: loginThrottleSnapshot,
+  },
+};

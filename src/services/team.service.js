@@ -186,4 +186,33 @@ function unbindTeam(user) {
   return { partnerId };
 }
 
-module.exports = { getTeamView, createInvite, respondInvite, unbindTeam, getActiveTeamForUser };
+/**
+ * 头像可见性（Day 21 复测 v1.0.3，对象级鉴权）：头像不经全员广场展示
+ * （广场卡片用昵称首字），可见者限定为——本人、在组搭档、待处理邀请双方、管理员。
+ * 打卡照片不适用此规则：广场是全员成果展示，登录即可见（by design）。
+ */
+function canViewAvatar(ownerId, viewer) {
+  if (!viewer) return false;
+  if (viewer.role === 'admin' || viewer.id === ownerId) return true;
+  const db = getDb();
+  const partner = db
+    .prepare(
+      `SELECT 1 FROM teams WHERE status = 'active'
+         AND ((user_a = ? AND user_b = ?) OR (user_a = ? AND user_b = ?))
+       LIMIT 1`
+    )
+    .get(ownerId, viewer.id, viewer.id, ownerId);
+  if (partner) return true;
+  const invite = db
+    .prepare(
+      `SELECT 1 FROM notifications
+        WHERE type = 'invite' AND read_at IS NULL
+          AND ((user_id = ? AND json_extract(payload, '$.fromId') = ?)
+            OR (user_id = ? AND json_extract(payload, '$.fromId') = ?))
+        LIMIT 1`
+    )
+    .get(viewer.id, ownerId, ownerId, viewer.id);
+  return !!invite;
+}
+
+module.exports = { getTeamView, createInvite, respondInvite, unbindTeam, getActiveTeamForUser, canViewAvatar };

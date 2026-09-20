@@ -10,6 +10,8 @@ const { requireAuth } = require('./src/middleware/auth');
 const { sameOriginGuard } = require('./src/middleware/csrf');
 const { createRateLimiter } = require('./src/middleware/rateLimit');
 const { UPLOAD_DIR } = require('./src/middleware/upload');
+const { getDb } = require('./src/db/db');
+const teamService = require('./src/services/team.service');
 const authRoutes = require('./src/routes/auth.routes');
 const taskRoutes = require('./src/routes/task.routes');
 const checkinRoutes = require('./src/routes/checkin.routes');
@@ -117,10 +119,29 @@ app.set('views', path.join(__dirname, 'views'));
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ limit: '1mb', extended: true }));
 // Day 18：打卡照片与头像移出公开静态目录——/uploads/* 必须登录后才能访问。
-// 存储目录在 data/uploads（upload.js 启动时自动把老 public/uploads 迁移过去），
-// express.static 自带路径穿越防护，requireAuth 在其前统一挡未登录请求。
+// 存储目录在 data/uploads（upload.js 启动时自动把老 public/uploads 迁移过去）。
 // 注意必须挂在 public 静态之前，避免旧文件残留在 public/uploads 时被直出。
-app.use('/uploads', requireAuth, express.static(UPLOAD_DIR));
+// Day 21 复测（v1.0.3）：头像加对象级鉴权——头像不经广场展示（广场卡片用昵称
+// 首字），可见者限定本人 / 在组搭档 / 待处理邀请双方 / 管理员（team.service.canViewAvatar）；
+// 打卡照片维持「登录即可见」（广场为全员成果展示，by design）。
+// 鉴权命中后交由 express.static 输出（自带路径穿越防护），Cache-Control 收敛为 private。
+app.use(
+  '/uploads',
+  requireAuth,
+  (req, res, next) => {
+    const rel = String(req.path || '').replace(/^\/+/, '');
+    if (!rel.startsWith('avatars/')) return next();
+    const owner = getDb().prepare('SELECT id FROM users WHERE avatar_path = ?').get('uploads/' + rel);
+    if (!owner) return res.status(404).json({ message: '文件不存在' });
+    if (!teamService.canViewAvatar(owner.id, req.user)) {
+      return res.status(403).json({ message: '无权查看该头像' });
+    }
+    return next();
+  },
+  express.static(UPLOAD_DIR, {
+    setHeaders: (res) => res.setHeader('Cache-Control', 'private, max-age=0'),
+  })
+);
 app.use(express.static(path.join(__dirname, 'public')));
 
 // 每个请求装载当前用户（供模板与守卫使用）。
