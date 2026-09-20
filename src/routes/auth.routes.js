@@ -84,8 +84,11 @@ function avatarRelPath(filename) {
   return 'uploads/avatars/' + filename;
 }
 
-/** 写会话：userId + 签发时间（iat 供改密作废校验，见 user.service.getSessionUser） */
+/** 写会话：userId + 签发时间（iat 供改密作废校验，见 user.service.getSessionUser）。
+ *  Day 21 复测修复：会话被作废后中间件置 req.session = null（Cookie 仍签名有效），
+ *  持有旧 Cookie 的客户端登录 / 注册时必须先初始化空会话，否则置值直接 500。 */
 function establishSession(req, userId) {
+  if (!req.session) req.session = {};
   req.session.userId = userId;
   req.session.iat = Date.now();
 }

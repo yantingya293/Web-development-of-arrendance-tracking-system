@@ -100,12 +100,23 @@ function createSoloCheckin(user, payload) {
       throw httpError(409, '今天已对该任务打卡，明天再来吧', { taskId: '今天已打卡' });
     }
 
-    const info = getDb()
-      .prepare(
-        `INSERT INTO checkins (user_id, task_id, task_type, image_paths, note, is_overdue, day)
-         VALUES (?, ?, 'solo', ?, ?, ?, ?)`
-      )
-      .run(user.id, task.id, JSON.stringify(photos), note, isOverdue, day);
+    const insertOne = () =>
+      getDb()
+        .prepare(
+          `INSERT INTO checkins (user_id, task_id, task_type, image_paths, note, is_overdue, day)
+           VALUES (?, ?, 'solo', ?, ?, ?, ?)`
+        )
+        .run(user.id, task.id, JSON.stringify(photos), note, isOverdue, day);
+    let info;
+    try {
+      info = insertOne();
+    } catch (err) {
+      // Day 21 复测加固：并发下预检漏网、由唯一索引兜底时，返回与预检一致的 409
+      if (String(err.code || '') === 'SQLITE_CONSTRAINT_UNIQUE') {
+        throw httpError(409, '今天已对该任务打卡，明天再来吧', { taskId: '今天已打卡' });
+      }
+      throw err;
+    }
 
     // 未开始的任务打卡后自动进入进行中（打卡 ≠ 完成，完成由用户显式标记）。
     // 状态副作用仅限任务主人（个人任务）/ 管理员（公共任务）：普通用户打卡公共任务

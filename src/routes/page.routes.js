@@ -42,7 +42,9 @@ router.get('/', (req, res) => {
 });
 
 router.get('/login', (req, res) => {
-  if (req.session.userId) return res.redirect('/');
+  // Day 21 复测修复：会话被作废后中间件会置 req.session = null（Cookie 仍签名有效），
+  // 必须判空，否则持有旧 Cookie 的客户端（多标签页/改密后的其他设备）在此 500
+  if (req.session && req.session.userId) return res.redirect('/');
   res.render('login', {
     title: '登录',
     active: '',
@@ -52,7 +54,7 @@ router.get('/login', (req, res) => {
 });
 
 router.get('/register', (req, res) => {
-  if (req.session.userId) return res.redirect('/');
+  if (req.session && req.session.userId) return res.redirect('/');
   res.render('register', { title: '注册', active: '' });
 });
 

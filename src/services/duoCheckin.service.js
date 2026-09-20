@@ -88,12 +88,21 @@ function createDuoCheckin(user, payload) {
   const partnerId = team.user_a === user.id ? team.user_b : team.user_a;
 
   const insert = getDb().transaction(() => {
-    const info = getDb()
-      .prepare(
-        `INSERT INTO duo_checkins (duo_task_id, user_id, image_paths, note, day)
-         VALUES (?, ?, ?, ?, ?)`
-      )
-      .run(task.id, user.id, JSON.stringify(photos), note, today);
+    let info;
+    try {
+      info = getDb()
+        .prepare(
+          `INSERT INTO duo_checkins (duo_task_id, user_id, image_paths, note, day)
+           VALUES (?, ?, ?, ?, ?)`
+        )
+        .run(task.id, user.id, JSON.stringify(photos), note, today);
+    } catch (err) {
+      // Day 21 复测加固：并发下预检漏网、由唯一索引兜底时，返回与预检一致的 409
+      if (String(err.code || '') === 'SQLITE_CONSTRAINT_UNIQUE') {
+        throw httpError(409, '今天已对该任务打卡，明天再来吧', { duoTaskId: '今天已打卡' });
+      }
+      throw err;
+    }
 
     // 未开始的任务打卡后自动进入进行中（完成由成员显式标记）。
     // 与单人打卡不同：共同任务由队伍双方共有，任一成员打卡都可推进状态（Day 15 复核确认）。

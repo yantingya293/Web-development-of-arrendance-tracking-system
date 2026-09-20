@@ -319,6 +319,21 @@ async function main() {
       const after = await request('GET', '/api/tasks', { cookie: cookieA });
       assert(after.status === 401, '登出后仍可访问');
     });
+    await check('已作废 Cookie 重放：页面正常渲染且可重新登录（Day 21 回归）', async () => {
+      const stale = cookieA; // 上一项已作废，但仍签名有效
+      const login = await request('GET', '/login', { cookie: stale });
+      assert(login.status === 200, 'GET /login status=' + login.status);
+      const reg = await request('GET', '/register', { cookie: stale });
+      assert(reg.status === 200, 'GET /register status=' + reg.status);
+      const relogin = await request('POST', '/api/auth/login', {
+        json: { account: accountA, password: 'passw0rd1' },
+        cookie: stale,
+      });
+      assert(relogin.status === 200, '持旧 Cookie 重新登录 status=' + relogin.status);
+      cookieA = cookieOf(relogin);
+      const me = await request('GET', '/api/auth/me', { cookie: cookieA });
+      assert(me.status === 200 && me.body.user.account === accountA, '新会话未生效');
+    });
 
     /* ---------- Day 20：安全专项 ---------- */
     await check('CSP 响应头 + X-Powered-By 已移除', async () => {

@@ -15,7 +15,7 @@
  *          管理员后台（概览统计口径 / 用户搜索分页 / 公共任务 CRUD，3 项）
  * 安全加固：改密与会话作废 / 上传魔数校验（3 项，检查器支持 async）
  * Day 15：安全加固（公共任务状态收权 / 回跳消毒 / 注册同形等时 / 删除清理照片×2 / 分页取整，6 项）
- * Day 21：单人打卡每日一次（同任务同日重复 409，1 项）
+ * Day 21：单人打卡每日一次（同任务同日重复 409，1 项）+ 迁移自愈（中间态修复且幂等，1 项）
  *
  * 运行：node dbCheck.js
  * 说明：探针写入全部包在一个事务里并在结束时 ROLLBACK，不会污染数据文件
@@ -883,8 +883,90 @@ async function main() {
       }
     });
 
-    await check('分页参数取整钳制（gallery / notifications / admin users）', () => {
-      const galleryService15 = require('./src/services/gallery.service');
+    await check('Day21 迁移自愈：中间态（有列有重复无索引）initDb 修复且幂等', () => {
+      const { spawnSync } = require('child_process');
+      const scratch = path.join(__dirname, 'data', '.tmp-migcheck.db');
+      fs.rmSync(scratch, { force: true });
+      try {
+        // 构造「回填已提交、去重/建索引未执行」的中间态（正是白盒报告的致命场景）：
+        // 旧式表（无 day 列）+ 同 (user, task, day) 重复行 → 加列回填后仍留重复、无唯一索引
+        const mk = spawnSync(
+          process.execPath,
+          [
+            '-e',
+            `
+            const Database = require('better-sqlite3');
+            const c = new Database(process.env.SCRATCH);
+            c.exec(\`CREATE TABLE checkins (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              user_id INTEGER NOT NULL,
+              task_id INTEGER NOT NULL,
+              task_type TEXT NOT NULL DEFAULT 'solo',
+              image_paths TEXT NOT NULL DEFAULT '[]',
+              note TEXT NOT NULL DEFAULT '',
+              submitted_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+              is_overdue INTEGER NOT NULL DEFAULT 0
+            )\`);
+            c.exec('CREATE INDEX idx_checkins_user ON checkins(user_id, submitted_at)');
+            c.exec('CREATE INDEX idx_checkins_task ON checkins(task_id)');
+            c.exec("ALTER TABLE checkins ADD COLUMN day TEXT");
+            const ins = c.prepare("INSERT INTO checkins (user_id, task_id, image_paths, note, submitted_at, is_overdue) VALUES (?, ?, '[]', 'x', '2026-01-01 10:00:00', 0)");
+            ins.run(1, 1); ins.run(1, 1);   // 同 (user,task) 同日两条 → 迁移应去重为 1
+            const ins2 = c.prepare("INSERT INTO checkins (user_id, task_id, image_paths, note, submitted_at, is_overdue) VALUES (?, ?, '[]', 'x', '2026-01-01 11:00:00', 0)");
+            ins2.run(1, 2); ins2.run(1, 2);
+            c.exec('UPDATE checkins SET day = substr(submitted_at, 1, 10)');
+            c.close();
+            `,
+          ],
+          { env: { ...process.env, SCRATCH: scratch }, encoding: 'utf-8' }
+        );
+        if (mk.status !== 0) throw new Error('构造中间态失败: ' + mk.stderr);
+
+        // 修复后的 initDb 必须能在中间态上自愈（去重 + 建索引），且幂等
+        const runInit = () =>
+          spawnSync(
+            process.execPath,
+            ['-e', 'require("./src/db/db").initDb()'],
+            { env: { ...process.env, DB_PATH: scratch }, encoding: 'utf-8' }
+          );
+        const r1 = runInit();
+        if (r1.status !== 0) throw new Error('中间态上 initDb 失败: ' + r1.stderr.slice(0, 200));
+        const r2 = runInit();
+        if (r2.status !== 0) throw new Error('initDb 幂等性失败: ' + r2.stderr.slice(0, 200));
+
+        const Database = require('better-sqlite3');
+        const c2 = new Database(scratch, { readonly: true });
+        const rows = c2.prepare('SELECT COUNT(*) AS n FROM checkins').get().n;
+        const idx = !!c2
+          .prepare("SELECT 1 FROM sqlite_master WHERE type='index' AND name='idx_checkins_daily'")
+          .get();
+        const nulls = c2.prepare('SELECT COUNT(*) AS n FROM checkins WHERE day IS NULL').get().n;
+        c2.close();
+        if (rows !== 2) throw new Error(`重复未去重：剩 ${rows} 行（预期 2）`);
+        if (!idx) throw new Error('唯一索引未创建');
+        if (nulls !== 0) throw new Error(`残留 NULL day ${nulls} 行`);
+
+        // 自愈后的库必须由唯一索引拒绝重复插入
+        const c3 = new Database(scratch);
+        let rejected = false;
+        try {
+          c3
+            .prepare(
+              `INSERT INTO checkins (user_id, task_id, image_paths, note, submitted_at, is_overdue, day)
+               VALUES (1, 1, '[]', 'dup', '2026-01-01 23:00:00', 0, '2026-01-01')`
+            )
+            .run();
+        } catch (err) {
+          rejected = String(err.code || '').startsWith('SQLITE_CONSTRAINT');
+        }
+        c3.close();
+        if (!rejected) throw new Error('唯一索引未拦截同 (user,task,day) 重复插入');
+      } finally {
+        fs.rmSync(scratch, { force: true });
+      }
+    });
+
+    await check('分页参数取整钳制（gallery / notifications / admin users）', () => {      const galleryService15 = require('./src/services/gallery.service');
       const g = galleryService15.listGallery({ limit: '1.7', offset: 'abc' });
       if (!Array.isArray(g.checkins) || g.checkins.length > 1) throw new Error('gallery limit=1.7 未取整钳制');
       const g2 = galleryService15.listGallery({ limit: 'abc' });
