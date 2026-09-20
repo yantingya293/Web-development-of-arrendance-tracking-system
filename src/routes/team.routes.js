@@ -10,10 +10,20 @@
  */
 const express = require('express');
 const { requireAuth } = require('../middleware/auth');
+const { createRateLimiter } = require('../middleware/rateLimit');
 const teamService = require('../services/team.service');
 
 const router = express.Router();
 router.use(requireAuth);
+
+// Day 21 复测加固：邀请按账号名提示「该账号不存在」是有意的 UX 取舍（保留），
+// 但为该认证后端点加每用户限流，使批量账号枚举不可行（正常组队远低于此阈值）。
+const inviteLimiter = createRateLimiter({
+  windowMs: 60 * 60 * 1000,
+  max: 20,
+  keyFn: (req) => 'invite:' + req.user.id,
+  message: '邀请发送过于频繁，请稍后再试',
+});
 
 /** 服务层业务错误（带 status）原样返回，其余 500 兜底 */
 function sendServiceError(prefix, res, err) {
@@ -37,7 +47,7 @@ router.get('/', (req, res) => {
   }
 });
 
-router.post('/invites', (req, res) => {
+router.post('/invites', inviteLimiter, (req, res) => {
   try {
     const result = teamService.createInvite(req.user, (req.body || {}).account);
     res.status(201).json({ message: `邀请已发给 ${result.to.nickname}，等待对方处理` });

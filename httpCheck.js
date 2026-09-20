@@ -280,6 +280,17 @@ async function main() {
         '协作统计异常: ' + stats.status + ' ' + String(stats.text).slice(0, 160)
       );
     });
+    await check('邀请限流：认证后枚举通道超阈值 429（Day 21 复测加固）', async () => {
+      let saw429 = false;
+      for (let i = 0; i < 25 && !saw429; i++) {
+        const r = await request('POST', '/api/team/invites', {
+          cookie: cookieA,
+          json: { account: 'no_such_probe_' + i },
+        });
+        if (r.status === 429) saw429 = true;
+      }
+      assert(saw429, '20 次/小时阈值未触发 429');
+    });
 
     /* ---------- 管理员 ---------- */
     await check('管理员守卫：普通用户 403 / 管理员 200', async () => {
