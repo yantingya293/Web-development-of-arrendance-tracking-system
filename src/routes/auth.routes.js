@@ -46,6 +46,19 @@ const router = express.Router();
  * 见 /login 处理与 rateLimit.js loginThrottle——原 createFailureRateLimiter
  * 的入口硬拦会把共享 NAT 下的正确密码一并 429（认证 DoS）。 */
 
+/* Day 21 复测补丁（v1.0.4，vuln-0004）：凭据验证前置的代价是每条登录尝试都会
+ * 执行一次 bcrypt。这道「防爆破闸门」按 IP 对 /login 全部请求（含成功）做
+ * 60 次 / 分钟的预限制——远高于正常人类用量，持错密码的合法用户几乎不可能
+ * 触发；但能把单 IP 的 bcrypt 开销钳制在 ~1 次 / 秒，持续爆破无法压满 CPU。
+ * 已知取舍（文档化于 SECURITY_AUDIT 第十一节）：持续滥用下同一 IP 的正确
+ * 凭据也会被 429——配合告警与验证码 / 2FA 是后续方向。 */
+const loginVerificationGuard = createRateLimiter({
+  windowMs: 60 * 1000,
+  max: 60,
+  keyFn: (req) => 'login-guard:' + req.ip,
+  message: '登录请求过于频繁，请稍后再试',
+});
+
 const registerLimiter = createRateLimiter({
   windowMs: 60 * 60 * 1000,
   max: 5,
@@ -105,7 +118,7 @@ router.post('/register', registerLimiter, async (req, res) => {
   }
 });
 
-router.post('/login', async (req, res) => {
+router.post('/login', loginVerificationGuard, async (req, res) => {
   try {
     const { account, password } = req.body || {};
     const acc = String(account || '').trim();

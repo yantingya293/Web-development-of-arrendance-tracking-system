@@ -86,8 +86,10 @@ function createFailureRateLimiter({ windowMs, max, keyFn, message, failStatus = 
  * NAT（校园网 / 宿舍出口）下的全部用户锁死，且正确密码也被 429。
  * 新模型：登录路由先验证凭据——成功永远放行并清空对应账号桶；仅对「失败尝试」
  * 按 IP（10 次 / 15 分钟）与按账号（5 次 / 15 分钟）双计数，超阈值后的失败尝试
- * 返回 429。在线爆破吞吐仍被压制（429 快速拒绝 + /api 全局限流钳制 bcrypt 成本），
- * 但正确凭据任何时刻都可登录。通用文案与等时时序维持不变（不泄漏账号存在性）。 */
+ * 返回 429。注意：凭据验证前置意味着每条登录尝试都会执行一次 bcrypt——429 只是对
+ * 「密码错误」的响应修饰，并不阻止该次猜测被评估，也不节省 bcrypt 成本；在线爆破的
+ * 实际吞吐由 /api 全局限流与 /login 防爆破闸门（见 auth.routes）约束。但正确凭据
+ * 任何时刻都可登录。通用文案与等时时序维持不变（不泄漏账号存在性）。 */
 const LOGIN_WINDOW_MS = 15 * 60 * 1000;
 const LOGIN_IP_MAX = 10;
 const LOGIN_ACCOUNT_MAX = 5;
@@ -106,13 +108,15 @@ function loginBucket(key, now) {
 function recordLoginFailure(req, account) {
   const now = Date.now();
   const ipBucket = loginBucket('login-ip:' + req.ip, now);
-  const acctBucket = loginBucket('login-acct:' + String(account || '').toLowerCase(), now);
+  const acctBucket = loginBucket('login-acct:' + String(account || '').trim(), now);
   ipBucket.count += 1;
   acctBucket.count += 1;
   const throttled = ipBucket.count > LOGIN_IP_MAX || acctBucket.count > LOGIN_ACCOUNT_MAX;
   return {
     throttled,
     retryAfterSec: Math.max(1, Math.ceil((ipBucket.resetAt - now) / 1000)),
+    ipFails: ipBucket.count,
+    accountFails: acctBucket.count,
     ipCrossed: ipBucket.count === LOGIN_IP_MAX + 1,
     accountCrossed: acctBucket.count === LOGIN_ACCOUNT_MAX + 1,
   };
@@ -120,14 +124,14 @@ function recordLoginFailure(req, account) {
 
 /** 登录成功：清空该账号的失败桶（该账号此前的失败尝试不再累积）。 */
 function clearLoginFailures(account) {
-  buckets.delete('login-acct:' + String(account || '').toLowerCase());
+  buckets.delete('login-acct:' + String(account || '').trim());
 }
 
 /** 只读快照（供监控 / 测试）。 */
 function loginThrottleSnapshot(req, account) {
   const now = Date.now();
   const ip = buckets.get('login-ip:' + req.ip);
-  const acct = buckets.get('login-acct:' + String(account || '').toLowerCase());
+  const acct = buckets.get('login-acct:' + String(account || '').trim());
   return {
     ipFails: ip && now <= ip.resetAt ? ip.count : 0,
     accountFails: acct && now <= acct.resetAt ? acct.count : 0,

@@ -53,13 +53,16 @@ function listMyInvites(userId) {
     .all(userId);
 }
 
-/** 我发出的待处理邀请（至多一条，见策略约定） */
+/** 我发出的待处理邀请（至多一条，见策略约定）。
+ *  Day 21 复测补丁（v1.0.4，CWE-863）：不再返回接收方的 avatar_path——
+ *  邀请可单方面发起，回传对方头像路径等于赠送「文件名神谕 + 可自授的读取权」。
+ *  前端邀请卡按无头像回落昵称首字。 */
 function getMyOutgoingInvite(userId) {
   return getDb()
     .prepare(
       `SELECT n.id, n.created_at,
               u.id AS to_id, u.nickname AS to_nickname, u.account AS to_account,
-              u.avatar_path AS to_avatar_path
+              NULL AS to_avatar_path
        FROM notifications n JOIN users u ON u.id = n.user_id
        WHERE n.type = 'invite' AND n.read_at IS NULL
          AND json_extract(n.payload, '$.fromId') = ?
@@ -187,8 +190,11 @@ function unbindTeam(user) {
 }
 
 /**
- * 头像可见性（Day 21 复测 v1.0.3，对象级鉴权）：头像不经全员广场展示
- * （广场卡片用昵称首字），可见者限定为——本人、在组搭档、待处理邀请双方、管理员。
+ * 头像可见性（Day 21 复测 v1.0.3 建立对象级鉴权；v1.0.4 按渗透测试收紧邀请方向）：
+ * 可见者限定为——本人、在组搭档、管理员，以及「待处理邀请的接收方」可查看
+ * 「发送方」（发送方主动发起邀请即自曝身份，属单向自披露）。
+ * 反方向（发送方查看接收方）不授予：邀请可单方面发起，双向可见等于把
+ * 「他人头像不可读」的控制交给任意登录用户自行满足（CWE-863）。
  * 打卡照片不适用此规则：广场是全员成果展示，登录即可见（by design）。
  */
 function canViewAvatar(ownerId, viewer) {
@@ -203,15 +209,15 @@ function canViewAvatar(ownerId, viewer) {
     )
     .get(ownerId, viewer.id, viewer.id, ownerId);
   if (partner) return true;
+  // 仅「我收到了 ownerId 发来的待处理邀请」这一方向授予
   const invite = db
     .prepare(
       `SELECT 1 FROM notifications
         WHERE type = 'invite' AND read_at IS NULL
-          AND ((user_id = ? AND json_extract(payload, '$.fromId') = ?)
-            OR (user_id = ? AND json_extract(payload, '$.fromId') = ?))
+          AND user_id = ? AND json_extract(payload, '$.fromId') = ?
         LIMIT 1`
     )
-    .get(viewer.id, ownerId, ownerId, viewer.id);
+    .get(viewer.id, ownerId);
   return !!invite;
 }
 

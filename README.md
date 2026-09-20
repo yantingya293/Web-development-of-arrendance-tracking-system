@@ -94,11 +94,12 @@ docker compose up -d --build
 - M3 扩展与打磨（Day 13–18）：数据统计 / 个人中心 / 响应式 / UI
 - M4 验收与交付（Day 19–21）：测试 / 安全 / 文档 / 部署
 
-当前进度：**✅ v1.0.3 交付（21 天里程碑 + 四轮外部渗透测试全部闭环）**。
+当前进度：**✅ v1.0.4 交付（21 天里程碑 + 五轮外部渗透测试全部闭环）**。
 
-交付验收基线：`npm run verify`（dbCheck 60 项 + httpCheck 30 项）全过、`npm audit --omit=dev` 零告警、
-Docker 一键部署可用。遗留 P2（有意延后，见 SECURITY_AUDIT.md 第七、九节）：Express 5 迁移、
-图片全量解码 / 病毒扫描、注册枚举响应文案（产品取舍，邀请通道已加限流缓解）。
+交付验收基线：`npm run verify`（dbCheck 60 项 + httpCheck 33 项）全过、`npm audit --omit=dev` 零告警、
+Docker 一键部署可用。遗留 P2（有意延后，见 SECURITY_AUDIT.md 第七、九、十一节）：Express 5 迁移、
+图片全量解码 / 病毒扫描、注册枚举响应文案（产品取舍，邀请通道已加限流缓解）、验证码 / 2FA、
+账号枚举的规范化存储（大小写不敏感唯一约束）。
 
 - ✅ Day 2：SQLite 数据层 —— 七张表（users / tasks / checkins / teams / duo_tasks / duo_checkins / notifications）+ `src/db/db.js` 封装 + 种子数据；运行 `node dbCheck.js` 可验证（检查项随里程碑递增，Day 15 为 58 项）
 - ✅ Day 3：用户系统 —— 注册 / 登录 / 登出 / `me` 接口，bcrypt 密码哈希，Cookie+Session（7 天，httpOnly / SameSite=Lax），`requireAuth` / `requireAdmin` 中间件，登录 / 注册页面（客户端 + 服务端双重校验），首页用户区与登出，`/admin` 后台占位页（仅管理员）
@@ -123,3 +124,4 @@ Docker 一键部署可用。遗留 P2（有意延后，见 SECURITY_AUDIT.md 第
 - ✅ v1.0.1 补丁：白盒深度扫描两项 MEDIUM 修复——①**登出 / 改密后旧 Cookie 重放导致 500**（CWE-476）：会话作废后中间件置 `req.session = null`（Cookie 仍签名有效），而 `/login`、`/register` 页面与 `establishSession` 三处直接解引用导致持有旧 Cookie 的客户端（多标签页 / 改密后其他设备的正常场景）连登录页都打不开、正确密码也无法登录；三处判空 / 初始化修复，旧 Cookie 客户端可正常渲染页面并用正确凭据重新建立会话；②**Day 21 迁移非原子 / 不幂等**（CWE-248）：进程在「回填已提交、去重 / 建索引未执行」时被中断（SIGKILL / OOM / 容器重启），完成判据只看列存在会把中间态误判为已完成，此后每次启动 UNIQUE 失败、服务永久不可用；修复为完成判据三条件（day 列 + idx_checkins_daily + 无残留 NULL day）+ 全步骤 `BEGIN IMMEDIATE` 事务化（失败整体回滚、下次启动重试自愈）+ 先删索引再回填去重（防「索引已在但 day 全 NULL」态下回填撞 UNIQUE）；附带：solo / duo 打卡在唯一索引兜底并发漏网时映射为与预检一致的 409（不再 500）；`dbCheck.js` 升级至 60 项（迁移自愈探针：构造中间态验证 initDb 修复且幂等 + 唯一索引拦截）、`httpCheck.js` 升级至 26 项（已作废 Cookie 重放探针：页面渲染 + 重新登录）
 - ✅ v1.0.2 补丁：黑盒复测（打生产部署实例）唯一发现「组队邀请 / 注册响应可枚举账号存在性」处置——该项为此前已文档化的产品取舍（友好报错），本轮按报告建议补上缺失的缓解层：`POST /api/team/invites` 新增每用户 20 次 / 小时限流（`inviteLimiter`），批量账号枚举不可行；注册接口维持友好 409（行业惯例：GitHub / Google 注册同样提示占用；时序与并发侧信道已于 v1.0.0 封平），正式记入 SECURITY_AUDIT 第九节为「接受 + 缓解」处置；`httpCheck.js` 升级至 27 项（邀请限流 429 探针）
 - ✅ v1.0.3 补丁：黑盒复测三项修复——①**头像对象级鉴权**（Low，CWE-639）：修正 v1.0.0 的 by design 判定——广场头像位渲染的是昵称首字而非头像图片，头像实际不经任何全员展示面暴露；`/uploads/avatars/*` 收紧为本人 / 在组搭档 / 待处理邀请双方 / 管理员可见（`team.service.canViewAvatar`），打卡照片维持「登录即可见」（广场全员成果展示，by design）；`/uploads/*` 响应 `Cache-Control` 收敛为 `private, max-age=0`；②**登录节流重构**（Medium，CWE-645 认证 DoS）：废弃「单一按 IP 失败计数 + 入口硬拦」（共享 NAT 下 10 次错误密码会锁死整个出口 15 分钟、正确密码也被 429），改为**凭据验证前置**——正确凭据任何时刻都可登录并清空账号失败桶，失败尝试按 IP（10 次 / 15 分钟）+ 账号（5 次 / 15 分钟）双计数，超阈值后的失败尝试 429（在线爆破吞吐仍被压制，通用文案与等时时序不变，不泄漏账号存在性）；③**损坏 multipart 表单 → 400**（Info）：空体 / 截断体解析失败不再 500；`httpCheck.js` 升级至 30 项（头像鉴权五元矩阵 + 节流回归 + 损坏表单探针）
+- ✅ v1.0.4 补丁：第二轮白盒 + 黑盒复测五项处置——①**头像鉴权路径规范化绕过**（两份报告，Medium，CWE-180）：鉴权分类器看原始 `req.path` 而 express.static 解码并规范化同一路径，`avatars%2f`、`/./`、`/%2e/`、`/x/../` 等写法 8/8 变体绕过对象级鉴权；修复为分类前 `decodeURIComponent`（解码失败 400）+ `path.posix.normalize`，与静态层同一表示；②**头像「邀请双方可见」可自授**（两份报告，Medium，CWE-863）：邀请可单方面发起，「待处理邀请双方可见头像」等价于任意用户可自行满足授权条件；收紧为严格单向——仅「待处理邀请的接收方」可见「发送方」头像（发送方主动邀请即自曝身份），发送方不可见接收方；发出邀请视图不再回传对方 `avatar_path`（置 NULL，前端回落昵称首字），消除文件名 / 账号存在性神谕；③**登录防爆破闸门**（Medium，CWE-307）：v1.0.3 凭据验证前置的代价是每条登录尝试都执行 bcrypt 且爆破吞吐仅受全局限流约束；新增 `loginVerificationGuard`（60 次 / 分钟 / IP，含成功请求），把单 IP bcrypt 开销钳到 ~1 次 / 秒；已知取舍：持续滥用下同 IP 正确凭据也会 429（阈值远高于人类用量，配合告警）；④**节流告警日志打印 undefined 计数**（Info）：`recordLoginFailure` 返回值补 `ipFails / accountFails` 字段；⑤**节流账号桶大小写合并**（Info，CWE-178）：账号命名空间区分大小写，节流键改用 `.trim()` 精确串（三处同改，成功登录清桶才不失效）；`httpCheck.js` 升级至 33 项（非规范路径 7 变体 / 邀请方向性含拒绝状态迁移 / 防爆破闸门探针，原生 http 发送规避客户端规范化）

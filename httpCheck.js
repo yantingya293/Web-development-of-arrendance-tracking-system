@@ -416,6 +416,101 @@ async function main() {
 
       await request('DELETE', '/api/auth/avatar', { cookie: cookieA }); // 清理头像文件
     });
+    await check('头像非规范路径绕过封堵（./、%2e、%2f、.. 变体全部拒绝）', async () => {
+      // 原生 http 发送路径（fetch 会规范化 /./ 与 %2e，掩盖 CWE-180 类缺陷）
+      const rawGet = (p, cookie) =>
+        new Promise((resolve, reject) => {
+          const req = require('http').request(
+            { host: '127.0.0.1', port: PORT, path: p, method: 'GET', headers: { Cookie: cookie } },
+            (res) => {
+              const chunks = [];
+              res.on('data', (c) => chunks.push(c));
+              res.on('end', () => resolve({ status: res.statusCode, ct: res.headers['content-type'], body: Buffer.concat(chunks) }));
+            }
+          );
+          req.on('error', reject);
+          req.end();
+        });
+
+      const loginSpare = await request('POST', '/api/auth/login', {
+        json: { account: 'httpchk_spare', password: 'passw0rd1' },
+      });
+      const cookieSpare = cookieOf(loginSpare);
+      const loginAdmin = await request('POST', '/api/auth/login', {
+        json: { account: 'admin', password: 'admin123' },
+      });
+      const cookieAdmin = cookieOf(loginAdmin);
+      const upAd = await request('POST', '/api/auth/avatar', {
+        cookie: cookieAdmin,
+        form: multipart({ avatar: { __file: true, bytes: VALID_PNG, type: 'image/png', name: 'ad.png' } }),
+      });
+      assert(upAd.status === 200, 'admin 头像上传失败: ' + upAd.status);
+      const adRel = upAd.body.user.avatar_path;
+      const fname = adRel.split('/').pop();
+
+      const variants = [
+        '/uploads/./avatars/' + fname,
+        '/uploads/././avatars/' + fname,
+        '/uploads/%2e/avatars/' + fname,
+        '/uploads/%2E/avatars/' + fname,
+        '/uploads/avatars%2f' + fname,
+        '/uploads/foo/../avatars/' + fname,
+        '/uploads/%2e%2favatars/' + fname,
+      ];
+      for (const v of variants) {
+        const r = await rawGet(v, cookieSpare);
+        assert(
+          r.status === 403 || r.status === 404,
+          `非规范路径 ${v} 绕过鉴权: ${r.status} ${r.ct}`
+        );
+      }
+      const own = await rawGet('/uploads/avatars/' + fname, cookieAdmin);
+      assert(own.status === 200, '属主访问应正常: ' + own.status);
+      await request('DELETE', '/api/auth/avatar', { cookie: cookieAdmin });
+    });
+    await check('头像邀请方向性：发送方不可见接收方头像，接收方可见发送方，拒绝后消失', async () => {
+      const loginSpare = await request('POST', '/api/auth/login', {
+        json: { account: 'httpchk_spare', password: 'passw0rd1' },
+      });
+      const cookieSpare = cookieOf(loginSpare);
+      const upS = await request('POST', '/api/auth/avatar', {
+        cookie: cookieSpare,
+        form: multipart({ avatar: { __file: true, bytes: VALID_PNG, type: 'image/png', name: 'sp.png' } }),
+      });
+      assert(upS.status === 200, 'spare 头像上传失败: ' + upS.status);
+      const sRel = upS.body.user.avatar_path;
+
+      // A-B 解绑（用普通用户做方向性测试——admin 天然全可见，无法验证边界）
+      await request('DELETE', '/api/team', { cookie: cookieA });
+      const upB = await request('POST', '/api/auth/avatar', {
+        cookie: cookieB,
+        form: multipart({ avatar: { __file: true, bytes: VALID_PNG, type: 'image/png', name: 'bv.png' } }),
+      });
+      assert(upB.status === 200, 'B 头像上传失败: ' + upB.status);
+      const bRel = upB.body.user.avatar_path;
+
+      // spare（发送方）邀请 B（接收方）→ 待处理期间：发送方不可见接收方头像
+      const inv = await request('POST', '/api/team/invites', { cookie: cookieSpare, json: { account: accountB } });
+      assert(inv.status === 201, '邀请失败: ' + inv.text.slice(0, 100));
+      const denied = await request('GET', '/' + bRel, { cookie: cookieSpare });
+      assert(denied.status === 403, '发送方不应可见接收方头像: ' + denied.status);
+      const allowed = await request('GET', '/' + sRel, { cookie: cookieB });
+      assert(allowed.status === 200, '接收方应可见发送方头像: ' + allowed.status);
+
+      // B 拒绝邀请 → 双向授权消失
+      const team = await request('GET', '/api/team', { cookie: cookieB });
+      const invId = team.body.invites[0] && team.body.invites[0].id;
+      assert(invId, 'B 未收到邀请');
+      const dec = await request('POST', `/api/team/invites/${invId}/decline`, { cookie: cookieB });
+      assert(dec.status === 200, '拒绝失败');
+      const afterDenied = await request('GET', '/' + bRel, { cookie: cookieSpare });
+      assert(afterDenied.status === 403, '拒绝后发送方仍可见');
+      const afterAllowed = await request('GET', '/' + sRel, { cookie: cookieB });
+      assert(afterAllowed.status === 403, '拒绝后接收方仍可见');
+
+      await request('DELETE', '/api/auth/avatar', { cookie: cookieSpare });
+      await request('DELETE', '/api/auth/avatar', { cookie: cookieB });
+    });
     await check('损坏 multipart 表单 → 400（不再 500）', async () => {
       for (const p of ['/api/checkins', '/api/duo-checkins', '/api/auth/avatar']) {
         const r = await request('POST', p, {
@@ -440,6 +535,27 @@ async function main() {
         json: { account: accountB, password: 'passw0rd1' },
       });
       assert(ok.status === 200, '正确凭据被节流拦截（认证 DoS 回归）: ' + ok.status);
+    });
+    await check('登录防爆破闸门：60 次/分钟/IP 后统一 429（v1.0.4，vuln-0004）', async () => {
+      // 闸门按全部 /login 请求计数；套件至此已消耗约 20 次，本探针 66 次必然跨越 60
+      let guardMsg = 0;
+      for (let i = 0; i < 25; i++) {
+        const r = await request('POST', '/api/auth/login', {
+          json: { account: accountB, password: 'wrong-g1-' + i },
+        });
+        if (/登录请求过于频繁/.test(r.text)) guardMsg += 1;
+      }
+      const ok = await request('POST', '/api/auth/login', {
+        json: { account: accountB, password: 'passw0rd1' },
+      });
+      assert(ok.status === 200, '闸门触发前正确凭据应成功: ' + ok.status);
+      for (let i = 0; i < 40; i++) {
+        const r = await request('POST', '/api/auth/login', {
+          json: { account: accountB, password: 'wrong-g2-' + i },
+        });
+        if (/登录请求过于频繁/.test(r.text)) guardMsg += 1;
+      }
+      assert(guardMsg > 0, '60 次/分钟防爆破闸门未触发');
     });
   } finally {
     child.kill();

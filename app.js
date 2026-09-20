@@ -129,7 +129,17 @@ app.use(
   '/uploads',
   requireAuth,
   (req, res, next) => {
-    const rel = String(req.path || '').replace(/^\/+/, '');
+    // Day 21 复测补丁（v1.0.4，CWE-180）：分类必须基于与 express.static 相同的
+    // 「解码一次 + 规范化点段」后的路径——否则 avatars%2f、/./、/%2e/、/x/../ 等
+    // 非规范写法的原始串不以 avatars/ 开头，会跳过鉴权而静态层仍解析到同一文件
+    // （validate-before-canonicalize，白盒复测 8/8 变体实测绕过）。
+    let decodedPath;
+    try {
+      decodedPath = decodeURIComponent(String(req.path || ''));
+    } catch (_) {
+      return res.status(400).json({ message: '请求路径不合法' });
+    }
+    const rel = path.posix.normalize('/' + decodedPath).replace(/^\/+/, '');
     if (!rel.startsWith('avatars/')) return next();
     const owner = getDb().prepare('SELECT id FROM users WHERE avatar_path = ?').get('uploads/' + rel);
     if (!owner) return res.status(404).json({ message: '文件不存在' });
