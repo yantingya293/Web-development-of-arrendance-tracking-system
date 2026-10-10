@@ -1,17 +1,17 @@
-/* 学习打卡网页 · 全局主题（蓝白风）
+/* 学习打卡网页 · 全局主题（绿白风）
    Day 1：主色变量；Day 4：补全字号 / 间距 / 阴影 / 语义色，作为全站视觉规范。
    Day 17：新增深色模式（[data-theme="dark"] 变量覆盖，见文件末尾）。 */
 :root {
   color-scheme: light; /* 原生控件（输入框 / 日期选择 / 滚动条）跟随主题 */
 
   /* 主色 */
-  --primary: #3b82f6;
-  --primary-dark: #2563eb;
-  --primary-light: #eff6ff;
-  --primary-border: #bfdbfe; /* 主色系悬浮描边（Day 17 从硬编码收编为变量，供深色模式覆盖） */
+  --primary: #10b981;
+  --primary-dark: #059669;
+  --primary-light: #ecfdf5;
+  --primary-border: #a7f3d0; /* 主色系悬浮描边（Day 17 从硬编码收编为变量，供深色模式覆盖） */
 
   /* 中性色 */
-  --bg: #f8fafc;
+  --bg: #f6faf7;
   --surface: #ffffff;
   --text: #1e293b;
   --text-muted: #64748b;
@@ -1518,8 +1518,8 @@ button.upload-zone:disabled {
   transform: scale(1.08);
 }
 
-.heatmap-box.lv1 { background: var(--primary-border); border-color: #93c5fd; }
-.heatmap-box.lv2 { background: #60a5fa; border-color: #3b82f6; }
+.heatmap-box.lv1 { background: var(--primary-border); border-color: #6ee7b7; }
+.heatmap-box.lv2 { background: #34d399; border-color: #10b981; }
 .heatmap-box.lv3 { background: var(--primary-dark); border-color: var(--primary-dark); }
 
 .heatmap-label {
@@ -1949,7 +1949,7 @@ button.upload-zone:disabled {
 }
 
 .duo-bar.partner {
-  background: #93c5fd;
+  background: #6ee7b7;
 }
 
 /* 今日列高亮 */
@@ -1993,7 +1993,7 @@ button.upload-zone:disabled {
 }
 
 .duo-dot-partner {
-  background: #93c5fd;
+  background: #6ee7b7;
 }
 
 /* ---- Day 11 响应式：四列统计卡降为两列 ---- */
@@ -2130,7 +2130,7 @@ button.upload-zone:disabled {
 .cat-bar-fill {
   height: 100%;
   border-radius: 999px;
-  background: #60a5fa;
+  background: #34d399;
 }
 
 .cat-count {
@@ -2206,13 +2206,13 @@ button.upload-zone:disabled {
 
 .cal-cell.lv1 {
   background: var(--primary-border);
-  border-color: #93c5fd;
+  border-color: #6ee7b7;
   color: var(--primary-dark);
 }
 
 .cal-cell.lv2 {
-  background: #60a5fa;
-  border-color: #3b82f6;
+  background: #34d399;
+  border-color: #10b981;
   color: #fff;
 }
 
