@@ -113,6 +113,11 @@ app.use((req, res, next) => {
   next();
 });
 
+// TLS 由宿主机 nginx/Caddy 终结的反代部署时设 TRUST_PROXY=1：限流 / 登录闸门
+// 才能拿到真实客户端 IP，Secure Cookie 与 HSTS 才会按 HTTPS 请求生效
+// （见 src/middleware/rateLimit.js 与 csrf.js 顶部注释）
+if (process.env.TRUST_PROXY === '1') app.set('trust proxy', 1);
+
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 
