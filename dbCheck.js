@@ -16,6 +16,8 @@
  * 安全加固：改密与会话作废 / 上传魔数校验（3 项，检查器支持 async）
  * Day 15：安全加固（公共任务状态收权 / 回跳消毒 / 注册同形等时 / 删除清理照片×2 / 分页取整，6 项）
  * Day 21：单人打卡每日一次（同任务同日重复 409，1 项）+ 迁移自愈（中间态修复且幂等，1 项）
+ * v1.1.0：tasks 表重建迁移（today 分类 + partner_visible，1 项）+ 当日任务默认截止（1 项）
+ *          + 搭档观察可见性与今日打卡联动（1 项）
  *
  * 运行：node dbCheck.js
  * 说明：探针写入全部包在一个事务里并在结束时 ROLLBACK，不会污染数据文件
@@ -966,7 +968,196 @@ async function main() {
       }
     });
 
-    await check('分页参数取整钳制（gallery / notifications / admin users）', () => {      const galleryService15 = require('./src/services/gallery.service');
+    await check('v1.1.0 迁移：老库 tasks 表重建（today 分类放行 + partner_visible 补列，数据/索引/外键保留且幂等）', () => {
+      const { spawnSync } = require('child_process');
+      const scratch = path.join(__dirname, 'data', '.tmp-migcheck-v110.db');
+      fs.rmSync(scratch, { force: true });
+      try {
+        // 构造 v1.0.x 形状的老库：tasks 带 category CHECK（无 today）且无 partner_visible，
+        // checkins 已引用一条任务（验证重建后外键与数据双保留）
+        const mk = spawnSync(
+          process.execPath,
+          [
+            '-e',
+            `
+            const Database = require('better-sqlite3');
+            const c = new Database(process.env.SCRATCH);
+            c.pragma('foreign_keys = ON');
+            c.exec(\`CREATE TABLE users (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              nickname TEXT NOT NULL,
+              account TEXT NOT NULL UNIQUE,
+              password_hash TEXT NOT NULL,
+              role TEXT NOT NULL DEFAULT 'user',
+              avatar_path TEXT,
+              session_not_before INTEGER,
+              created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+            )\`);
+            c.exec("INSERT INTO users (nickname, account, password_hash) VALUES ('迁移用户', 'mig', 'h')");
+            c.exec(\`CREATE TABLE tasks (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              owner_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+              type TEXT NOT NULL DEFAULT 'solo' CHECK (type IN ('solo','duo')),
+              category TEXT NOT NULL DEFAULT 'daily' CHECK (category IN ('daily','weekly','question')),
+              title TEXT NOT NULL,
+              description TEXT NOT NULL DEFAULT '',
+              deadline TEXT,
+              status TEXT NOT NULL DEFAULT 'unstarted'
+                CHECK (status IN ('unstarted','in_progress','completed','overdue')),
+              created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+            )\`);
+            c.exec('CREATE INDEX idx_tasks_owner ON tasks(owner_id)');
+            c.exec('CREATE INDEX idx_tasks_deadline ON tasks(deadline)');
+            c.exec("INSERT INTO tasks (owner_id, type, category, title, status) VALUES (1, 'solo', 'weekly', '老任务', 'in_progress')");
+            c.exec(\`CREATE TABLE checkins (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+              task_id INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+              task_type TEXT NOT NULL DEFAULT 'solo',
+              image_paths TEXT NOT NULL DEFAULT '[]',
+              note TEXT NOT NULL DEFAULT '',
+              submitted_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+              is_overdue INTEGER NOT NULL DEFAULT 0,
+              day TEXT NOT NULL DEFAULT (date('now','localtime'))
+            )\`);
+            c.exec("INSERT INTO checkins (user_id, task_id) VALUES (1, 1)");
+            c.close();
+            `,
+          ],
+          { env: { ...process.env, SCRATCH: scratch }, encoding: 'utf-8' }
+        );
+        if (mk.status !== 0) throw new Error('构造老库失败: ' + mk.stderr);
+
+        const runInit = () =>
+          spawnSync(process.execPath, ['-e', 'require("./src/db/db").initDb()'], {
+            env: { ...process.env, DB_PATH: scratch },
+            encoding: 'utf-8',
+          });
+        const r1 = runInit();
+        if (r1.status !== 0) throw new Error('老库上 initDb 失败: ' + r1.stderr.slice(0, 300));
+        const r2 = runInit();
+        if (r2.status !== 0) throw new Error('initDb 幂等性失败: ' + r2.stderr.slice(0, 300));
+
+        const Database = require('better-sqlite3');
+        const c2 = new Database(scratch);
+        c2.pragma('foreign_keys = ON');
+        const row = c2.prepare('SELECT * FROM tasks WHERE id = 1').get();
+        if (!row || row.title !== '老任务' || row.category !== 'weekly' || row.status !== 'in_progress')
+          throw new Error('老任务数据未保留: ' + JSON.stringify(row));
+        if (row.partner_visible !== 0) throw new Error('老任务 partner_visible 应回填 0');
+        for (const idxName of ['idx_tasks_owner', 'idx_tasks_deadline']) {
+          if (!c2.prepare("SELECT 1 FROM sqlite_master WHERE type='index' AND name=?").get(idxName))
+            throw new Error(`索引 ${idxName} 未重建`);
+        }
+        // 新约束口径：today 可写入、非法分类仍拒绝、partner_visible 仅 0/1、外键仍生效
+        c2.prepare("INSERT INTO tasks (owner_id, category, title) VALUES (1, 'today', '新分类任务')").run();
+        let badCatRejected = false;
+        try {
+          c2.prepare("INSERT INTO tasks (owner_id, category, title) VALUES (1, 'monthly', '坏分类')").run();
+        } catch (err) {
+          badCatRejected = String(err.code || '').startsWith('SQLITE_CONSTRAINT');
+        }
+        if (!badCatRejected) throw new Error('重建后非法分类未被拒绝');
+        let badVisRejected = false;
+        try {
+          c2.prepare("INSERT INTO tasks (owner_id, category, title, partner_visible) VALUES (1, 'daily', '坏开关', 2)").run();
+        } catch (err) {
+          badVisRejected = String(err.code || '').startsWith('SQLITE_CONSTRAINT');
+        }
+        if (!badVisRejected) throw new Error('partner_visible CHECK 未生效');
+        let fkRejected = false;
+        try {
+          c2.prepare("INSERT INTO checkins (user_id, task_id) VALUES (1, 99999)").run();
+        } catch (err) {
+          fkRejected = String(err.code || '').startsWith('SQLITE_CONSTRAINT');
+        }
+        if (!fkRejected) throw new Error('checkins → tasks 外键在重建后失效');
+        // 老打卡记录仍在且指向保留的原任务
+        const c = c2.prepare('SELECT task_id FROM checkins WHERE id = 1').get();
+        if (!c || c.task_id !== 1) throw new Error('老打卡记录关联丢失');
+        c2.close();
+      } finally {
+        fs.rmSync(scratch, { force: true });
+      }
+    });
+
+    await check('task.service 当日任务（today）默认当晚截止 + 显式截止不受影响', () => {
+      const todayEnd = db.prepare("SELECT date('now','localtime') || ' 23:59:59' AS d").get().d;
+      const auto = taskService.createSoloTask(userAId, { title: '探针：当日任务默认截止', category: 'today' });
+      if (auto.deadline !== todayEnd) throw new Error(`默认截止应为 ${todayEnd}，实际 ${auto.deadline}`);
+      const manual = taskService.createSoloTask(userAId, {
+        title: '探针：当日任务显式截止',
+        category: 'today',
+        deadline: '2099-01-01 08:00',
+      });
+      if (manual.deadline !== '2099-01-01 08:00:00') throw new Error('显式截止被改写: ' + manual.deadline);
+      // 编辑为当日任务且清空截止 → 重新兜底为当天 24 点
+      const edited = taskService.updateSoloTask(userA, manual.id, {
+        title: manual.title,
+        category: 'today',
+        deadline: '',
+      });
+      if (edited.deadline !== todayEnd) throw new Error(`编辑后兜底截止应为 ${todayEnd}，实际 ${edited.deadline}`);
+    });
+
+    await check('task.service 搭档观察（partner_visible）可见性 + 今日打卡联动 + 未组队 409', () => {
+      // 独立小队：避免与 Day 8 探针的队伍状态互相干扰（沿用删除清理探针的做法）
+      const pa = db
+        .prepare(`INSERT INTO users (nickname, account, password_hash, role) VALUES ('观察A','__dbcheck_pa__','h','user')`)
+        .run().lastInsertRowid;
+      const pb = db
+        .prepare(`INSERT INTO users (nickname, account, password_hash, role) VALUES ('观察B','__dbcheck_pb__','h','user')`)
+        .run().lastInsertRowid;
+      db.prepare(`INSERT INTO teams (user_a, user_b) VALUES (?, ?)`).run(pa, pb);
+      const userPA = { id: pa, role: 'user' };
+
+      const shared = taskService.createSoloTask(pa, {
+        title: '探针：对搭档开放的任务',
+        category: 'today',
+        partner_visible: '1',
+      });
+      const hidden = taskService.createSoloTask(pa, { title: '探针：不对搭档开放的任务', category: 'daily' });
+      if (shared.partner_visible !== 1 || hidden.partner_visible !== 0)
+        throw new Error('partner_visible 归一化异常');
+
+      let list = taskService.listPartnerSharedTasks(pb);
+      if (list.some((t) => t.id === hidden.id)) throw new Error('未开放的任务出现在搭档观察列表');
+      const seen = list.find((t) => t.id === shared.id);
+      if (!seen) throw new Error('已开放的任务未出现在搭档观察列表');
+      if (seen.today_checkin_at !== null) throw new Error('未打卡时 today_checkin_at 应为 null');
+      if (seen.owner_id !== undefined || 'partner_visible' in seen === true)
+        throw new Error('观察视图不应暴露 owner_id 等内部字段');
+
+      // 打卡后今日进度联动
+      checkinService.createSoloCheckin(userPA, {
+        taskId: shared.id,
+        note: '打卡供搭档观察',
+        photos: ['uploads/dbcheck-pa1.jpg'],
+      });
+      list = taskService.listPartnerSharedTasks(pb);
+      const after = list.find((t) => t.id === shared.id);
+      if (!after || !/^\d{2}:\d{2}$/.test(after.today_checkin_at))
+        throw new Error('打卡后 today_checkin_at 未联动: ' + JSON.stringify(after));
+
+      // 自己看自己不算「搭档」视角：A 查列表应返回 B 的开放任务（此处 B 无任务 → 空列表）
+      const mine = taskService.listPartnerSharedTasks(pa);
+      if (mine.length !== 0) throw new Error('A 的观察列表应只含 B 开放的任务（当前为空）');
+
+      // 未组队用户 → 409
+      const lonely = db
+        .prepare(`INSERT INTO users (nickname, account, password_hash, role) VALUES ('观察C','__dbcheck_pc__','h','user')`)
+        .run().lastInsertRowid;
+      let caught;
+      try {
+        taskService.listPartnerSharedTasks(lonely);
+      } catch (err) {
+        caught = err;
+      }
+      if (!caught || caught.status !== 409) throw new Error('未组队应抛 409');
+    });
+
+    await check('分页参数取整钳制（gallery / notifications / admin users）', () => {
+      const galleryService15 = require('./src/services/gallery.service');
       const g = galleryService15.listGallery({ limit: '1.7', offset: 'abc' });
       if (!Array.isArray(g.checkins) || g.checkins.length > 1) throw new Error('gallery limit=1.7 未取整钳制');
       const g2 = galleryService15.listGallery({ limit: 'abc' });

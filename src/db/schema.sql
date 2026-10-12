@@ -26,10 +26,12 @@ CREATE TABLE IF NOT EXISTS tasks (
   type        TEXT    NOT NULL DEFAULT 'solo'
               CHECK (type IN ('solo', 'duo')),
   category    TEXT    NOT NULL DEFAULT 'daily'
-              CHECK (category IN ('daily', 'weekly', 'question')),  -- daily=每日任务 weekly=每周重点 question=学习问题（Day 5 引入）
+              CHECK (category IN ('daily', 'today', 'weekly', 'question')),  -- daily=每日任务 today=当日任务 weekly=每周重点 question=学习问题（v1.1.0 引入 today）
   title       TEXT    NOT NULL,
   description TEXT    NOT NULL DEFAULT '',
-  deadline    TEXT,                                  -- 'YYYY-MM-DD HH:MM:SS'，空 = 无截止
+  deadline    TEXT,                                  -- 'YYYY-MM-DD HH:MM:SS'，空 = 无截止（当日任务由服务层兜底补当晚 23:59:59）
+  partner_visible INTEGER NOT NULL DEFAULT 0
+              CHECK (partner_visible IN (0, 1)),     -- 1 = 对当前绑定搭档开放观察（v1.1.0 搭档监督开关；公共任务恒为 0）
   status      TEXT    NOT NULL DEFAULT 'unstarted'
               CHECK (status IN ('unstarted', 'in_progress', 'completed', 'overdue')),
   created_at  TEXT    NOT NULL DEFAULT (datetime('now', 'localtime'))

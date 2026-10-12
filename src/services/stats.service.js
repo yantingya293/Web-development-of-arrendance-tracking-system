@@ -37,7 +37,7 @@ function myDashboard(userId, query = {}) {
     in_progress: 0,
     completed: 0,
     overdue: 0,
-    by_category: { daily: 0, weekly: 0, question: 0 },
+    by_category: { daily: 0, today: 0, weekly: 0, question: 0 },
   };
   for (const r of rows) {
     tasks.total += r.n;

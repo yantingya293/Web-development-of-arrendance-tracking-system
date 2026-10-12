@@ -3,6 +3,7 @@
  *
  * 模块说明（全部需登录）：
  *   GET    /api/team                     组队全貌（当前队伍 / 收到的邀请 / 发出的邀请）
+ *   GET    /api/team/partner-tasks       搭档对我开放观察的单人任务（v1.1.0，只读监督视图）
  *   POST   /api/team/invites             按账号发出组队邀请 { account }
  *   POST   /api/team/invites/:id/accept  接受邀请（建队，返回最新组队全貌）
  *   POST   /api/team/invites/:id/decline 拒绝邀请
@@ -12,6 +13,7 @@ const express = require('express');
 const { requireAuth } = require('../middleware/auth');
 const { createRateLimiter } = require('../middleware/rateLimit');
 const teamService = require('../services/team.service');
+const taskService = require('../services/task.service');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -44,6 +46,16 @@ router.get('/', (req, res) => {
     res.json(teamService.getTeamView(req.user.id));
   } catch (err) {
     sendServiceError('team/view', res, err);
+  }
+});
+
+// v1.1.0 搭档观察：搭档在新建单人任务时勾选「允许搭档观察」的任务列表（含今日打卡情况）。
+// 授权来自 active 队伍成员关系，未组队与共同任务同口径返回 409。
+router.get('/partner-tasks', (req, res) => {
+  try {
+    res.json({ tasks: taskService.listPartnerSharedTasks(req.user.id) });
+  } catch (err) {
+    sendServiceError('team/partner-tasks', res, err);
   }
 });
 

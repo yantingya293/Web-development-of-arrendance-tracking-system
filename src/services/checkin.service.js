@@ -143,7 +143,7 @@ function createSoloCheckin(user, payload) {
  * 我的打卡记录（单人，Day 7 增加筛选与总数）
  * @param {number} userId 当前用户
  * @param {object} query  { limit = 20（≤50）, offset = 0（≥0）,
- *                          category = 任务分类（daily / weekly / question，可选）,
+ *                          category = 任务分类（daily / today / weekly / question，可选）,
  *                          date = 'YYYY-MM-DD'（可选，只看某天） }
  * @returns {{ checkins: Array, total: number }}  total 为符合筛选条件的总条数（供「加载更多」判断）
  */
@@ -153,7 +153,7 @@ function listMyCheckins(userId, query = {}) {
 
   const where = ['c.user_id = ?', "c.task_type = 'solo'"];
   const params = [userId];
-  if (['daily', 'weekly', 'question'].includes(query.category)) {
+  if (['daily', 'today', 'weekly', 'question'].includes(query.category)) {
     where.push('t.category = ?');
     params.push(query.category);
   }

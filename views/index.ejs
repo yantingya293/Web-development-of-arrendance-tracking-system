@@ -32,6 +32,7 @@
             <div class="task-tabs" id="taskTabs" role="group" aria-label="任务分类筛选">
               <button type="button" class="tab active" data-filter="all">全部 <span class="tab-count">0</span></button>
               <button type="button" class="tab" data-filter="daily">每日任务 <span class="tab-count">0</span></button>
+              <button type="button" class="tab" data-filter="today">当日任务 <span class="tab-count">0</span></button>
               <button type="button" class="tab" data-filter="weekly">每周重点 <span class="tab-count">0</span></button>
               <button type="button" class="tab" data-filter="question">学习问题 <span class="tab-count">0</span></button>
             </div>
@@ -182,12 +183,16 @@
                   <input type="radio" name="category" value="daily" checked />每日任务
                 </label>
                 <label class="radio-pill">
+                  <input type="radio" name="category" value="today" />当日任务
+                </label>
+                <label class="radio-pill">
                   <input type="radio" name="category" value="weekly" />每周重点
                 </label>
                 <label class="radio-pill">
                   <input type="radio" name="category" value="question" />学习问题
                 </label>
               </div>
+              <p class="form-hint" id="taskTodayHint" hidden>当日任务为一次性任务：当天内完成即可，未填截止时间时默认今晚 24 点前截止，次日未完成将自动转为「已逾期」。</p>
               <p class="field-error" data-error-for="category"></p>
             </div>
             <div class="form-group">
@@ -206,6 +211,15 @@
               <label for="taskDeadline">截止时间（可选）</label>
               <input id="taskDeadline" name="deadline" type="datetime-local" />
               <p class="field-error" data-error-for="deadline"></p>
+            </div>
+            <div class="form-group">
+              <label>搭档观察（可选）</label>
+              <div class="radio-row">
+                <label class="radio-pill">
+                  <input type="checkbox" id="taskPartnerVisible" name="partner_visible" value="1" />允许搭档观察监督
+                </label>
+              </div>
+              <p class="form-hint">开启后，当前绑定的搭档可在「双人协作广场」查看此任务的完成状态与每日打卡情况。</p>
             </div>
             <div class="alert alert-error" id="taskFormError" hidden></div>
             <div class="modal-actions">

@@ -1,6 +1,8 @@
 /* 双人协作广场页脚本（Day 8 组队 / Day 9 共同任务 / Day 10 双方打卡 / Day 11 协作数据）
    组队区：GET /api/team → 收到的邀请（接受 / 拒绝）→ 当前搭档（解绑）→ 邀请表单。
    任务区：GET /api/duo-tasks → 任务卡片（今日双方进度 / 分工 / 截止 / 状态流转 / 打卡）。
+   搭档观察区（v1.1.0）：GET /api/team/partner-tasks → 搭档开放观察的单人任务（只读，
+   含搭档今日打卡情况）；组队后显示，解绑后隐藏。
    打卡区：POST /api/duo-checkins（每日一次）；记录区 GET /api/duo-checkins；
    协作数据：GET /api/duo-checkins/stats（统计卡 + 近 7 天双方打卡对比柱状图）；
    协作动态：GET /api/notifications（搭档打卡 / 解绑 / 邀请通知）。 */
@@ -334,6 +336,7 @@
 
   function loadTasksArea() {
     if (!taskBody) return;
+    loadPartnerSoloArea(); // 搭档观察区随组队状态同步显隐（v1.1.0）
     if (!view || !view.team) {
       duoTasks = [];
       renderTasksArea();
@@ -360,6 +363,78 @@
           '<div class="empty-state"><p class="empty-title">加载失败</p>' +
           '<p class="empty-hint muted">网络异常，请刷新重试。</p></div>';
       });
+  }
+
+  /* ---------- 搭档的单人任务观察区（v1.1.0，只读监督视图） ---------- */
+
+  var partnerSoloSection = document.getElementById('partnerSoloSection');
+  var partnerSoloBody = document.getElementById('partnerSoloBody');
+  var SOLO_CATEGORY_LABELS = { daily: '每日任务', today: '当日任务', weekly: '每周重点', question: '学习问题' };
+
+  function renderPartnerTaskCard(t) {
+    var meta = [];
+    if (t.deadline) meta.push('截止 ' + fmtDeadline(t.deadline));
+    var todayLine =
+      '<p class="duo-today-line">今日打卡：' +
+      (t.today_checkin_at
+        ? '<span class="duo-today-done">已完成 ✓ ' + escapeHtml(t.today_checkin_at) + '</span>'
+        : '<span class="duo-today-todo">尚未打卡</span>') +
+      '</p>';
+    return (
+      '<article class="task-card' + (t.status === 'completed' ? ' completed' : '') + '">' +
+        '<div class="task-card-main">' +
+          '<div class="task-card-tags">' +
+            '<span class="tag tag-cat-' + t.category + '">' + (SOLO_CATEGORY_LABELS[t.category] || t.category) + '</span>' +
+            '<span class="tag tag-st-' + t.status + '">' + (STATUS_LABELS[t.status] || t.status) + '</span>' +
+          '</div>' +
+          '<h3 class="task-card-title">' + escapeHtml(t.title) + '</h3>' +
+          (t.description ? '<p class="task-card-desc">' + escapeHtml(t.description) + '</p>' : '') +
+          todayLine +
+          (meta.length ? '<p class="task-card-meta muted">' + meta.join(' · ') + '</p>' : '') +
+        '</div>' +
+      '</article>'
+    );
+  }
+
+  function loadPartnerSoloArea() {
+    if (!partnerSoloSection || !partnerSoloBody) return;
+    if (!view || !view.team) {
+      partnerSoloSection.hidden = true;
+      return;
+    }
+    partnerSoloSection.hidden = false;
+    // 从首页「查看」锚点进入时，区块刚显示，需要显式滚到可视区
+    if (window.location.hash === '#partnerSoloSection' && partnerSoloSection.scrollIntoView) {
+      partnerSoloSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+    partnerSoloBody.innerHTML = buildLoadingEl('正在加载搭档的任务…');
+    request('GET', '/api/team/partner-tasks')
+      .then(function (r) {
+        if (!r.ok) throw new Error(r.body.message);
+        var tasks = r.body.tasks || [];
+        partnerSoloBody.innerHTML = tasks.length
+          ? tasks.map(renderPartnerTaskCard).join('')
+          : '<div class="empty-state">' +
+              '<span class="empty-illustration" aria-hidden="true"></span>' +
+              '<p class="empty-title">搭档还没有对你开放的单人任务</p>' +
+              '<p class="empty-hint muted">让搭档在首页新建单人任务时勾选「允许搭档观察监督」，即可在这里跟进 TA 的完成与打卡情况。</p>' +
+            '</div>';
+      })
+      .catch(function () {
+        partnerSoloBody.innerHTML =
+          '<div class="empty-state"><p class="empty-title">加载失败</p>' +
+          '<p class="empty-hint muted">网络异常，请刷新重试。</p></div>';
+      });
+  }
+
+  /** loading 占位（与首页 taskListBody 的样式一致） */
+  function buildLoadingEl(text) {
+    return (
+      '<div class="loading" role="status" aria-live="polite">' +
+        '<span class="spinner" aria-hidden="true"></span>' +
+        '<p class="loading-text">' + escapeHtml(text) + '</p>' +
+      '</div>'
+    );
   }
 
   /* ---------- 协作数据板块（Day 11） ---------- */

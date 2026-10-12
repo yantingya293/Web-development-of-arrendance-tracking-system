@@ -1,6 +1,8 @@
 /* 首页「双人共同协作任务」板块脚本（Day 8 组队 / Day 9 共同任务预览）
    GET /api/team + GET /api/duo-tasks → 未组队：引导去 /duo 组队；已组队：搭档速览 +
-   共同任务预览（进行中优先，最多 3 条）与「进入广场」入口。 */
+   共同任务预览（进行中优先，最多 3 条）与「进入广场」入口。
+   v1.1.0：已组队时并行拉取 /api/team/partner-tasks，速览里提示搭档对我开放观察的
+   单人任务数量（点击进入广场可看完成与打卡情况）。 */
 (function () {
   'use strict';
 
@@ -49,7 +51,17 @@
     );
   }
 
-  function render(view, tasks) {
+  /** 搭档对我开放观察的单人任务提示行（v1.1.0；无开放任务时不渲染） */
+  function partnerSoloLine(partnerSolo, partnerName) {
+    if (!partnerSolo || !partnerSolo.length) return '';
+    return (
+      '<p class="duo-home-more">📋 ' + escapeHtml(partnerName) + ' 有 ' + partnerSolo.length +
+      ' 个单人任务对你开放观察，去广场看看 TA 的完成情况。' +
+      '<a href="/duo#partnerSoloSection">查看</a></p>'
+    );
+  }
+
+  function render(view, tasks, partnerSolo) {
     if (view.invites && view.invites.length) {
       body.innerHTML =
         '<div class="duo-home-notice">' +
@@ -71,6 +83,7 @@
           '<div class="duo-home-partner-main">' +
             '<p class="duo-home-partner-name">与 <strong>' + escapeHtml(p.nickname) + '</strong> 搭档中</p>' +
             listHtml +
+            partnerSoloLine(partnerSolo, p.nickname) +
           '</div>' +
           '<a class="btn btn-outline btn-sm" href="/duo">进入广场</a>' +
         '</div>';
@@ -91,13 +104,20 @@
       if (!r.ok) throw new Error(r.body.message);
       var view = r.body;
       // 已组队才拉任务；未组队直接渲染（/api/duo-tasks 对未组队返回 409）
-      if (!view.team) return { view: view, tasks: [] };
-      return request('GET', '/api/duo-tasks').then(function (rt) {
-        return { view: view, tasks: rt.ok ? rt.body.tasks || [] : [] };
+      if (!view.team) return { view: view, tasks: [], partnerSolo: [] };
+      return Promise.all([
+        request('GET', '/api/duo-tasks'),
+        request('GET', '/api/team/partner-tasks'),
+      ]).then(function (rs) {
+        return {
+          view: view,
+          tasks: rs[0].ok ? rs[0].body.tasks || [] : [],
+          partnerSolo: rs[1].ok ? rs[1].body.tasks || [] : [],
+        };
       });
     })
     .then(function (r) {
-      render(r.view, r.tasks);
+      render(r.view, r.tasks, r.partnerSolo);
     })
     .catch(function () {
       body.innerHTML = emptyState('加载失败', '网络异常，请刷新重试。', '刷新页面', '/');

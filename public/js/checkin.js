@@ -6,8 +6,8 @@
 (function () {
   'use strict';
 
-  var CATEGORY_LABELS = { daily: '每日任务', weekly: '每周重点', question: '学习问题' };
-  var CATEGORY_ORDER = ['daily', 'weekly', 'question'];
+  var CATEGORY_LABELS = { daily: '每日任务', today: '当日任务', weekly: '每周重点', question: '学习问题' };
+  var CATEGORY_ORDER = ['daily', 'today', 'weekly', 'question'];
   var ACCEPT_MIMES = ['image/jpeg', 'image/png'];
   var MAX_PHOTOS = 3;
   var MAX_SIZE = 10 * 1024 * 1024;
@@ -284,6 +284,11 @@
     noteInput.focus({ preventScroll: true });
     return true;
   };
+
+  /* 任务列表变化（新建 / 编辑 / 删除）后刷新下拉——新建的当日任务可立即选择打卡 */
+  document.addEventListener('tasks:changed', function () {
+    refreshSelect(taskSelect.value);
+  });
 
   refreshSelect();
 })();

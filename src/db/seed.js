@@ -5,7 +5,7 @@
  *   seedIfEmpty()  仅当 users 表为空时写入种子数据，幂等可重复调用：
  *                    1. 管理员账号 admin（密码用 ADMIN_PASSWORD 设置；生产未设置则生成一次性
  *                       随机密码打印一次；开发未设置用 admin123，上线前务必修改）
- *                    2. 几个示例单人任务（覆盖 daily / weekly / question 三类分类
+ *                    2. 几个示例单人任务（覆盖 daily / today / weekly / question 四类分类
  *                       与未开始 / 进行中 / 已逾期三种状态，Day 5 起带 category 字段）
  *   直接运行本文件可手动补种：node src/db/seed.js
  */
@@ -57,6 +57,14 @@ function buildSeedRows(now) {
       description: '限时 60 分钟完成 2024 年 Text 1–4，校对答案并整理错题。',
       deadline: daysFromNow(3),
       status: 'in_progress',
+    },
+    {
+      type: 'solo',
+      category: 'today',
+      title: '背完今日英语单词 50 个',
+      description: '当日任务示例：今晚 24 点前完成打卡，次日未完成将自动转为逾期。',
+      deadline: daysFromNow(0), // 当天 23:59:59 截止 → 一次性当日任务
+      status: 'unstarted',
     },
     {
       type: 'solo',

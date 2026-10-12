@@ -6,7 +6,7 @@
   'use strict';
 
   var PAGE_SIZE = 20;
-  var CATEGORY_LABELS = { daily: '每日任务', weekly: '每周重点', question: '学习问题' };
+  var CATEGORY_LABELS = { daily: '每日任务', today: '当日任务', weekly: '每周重点', question: '学习问题' };
   var STATUS_LABELS = { unstarted: '未开始', in_progress: '进行中', completed: '已完成', overdue: '已逾期' };
 
   function esc(s) {

@@ -58,6 +58,14 @@
   box-sizing: border-box;
 }
 
+/* v1.1.0：hidden 属性全局兜底。卡片 / 按钮 / 区块等组件自带 display: flex|block
+   会压过 UA 样式表的 [hidden] { display: none }，导致「未组队隐藏协作数据卡」
+   「隐藏新建共同任务按钮」等失效（modal-overlay 等处此前各自打过补丁）；
+   统一 !important 收口，任何元素挂 hidden 即隐藏。 */
+[hidden] {
+  display: none !important;
+}
+
 body {
   margin: 0;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
@@ -1047,11 +1055,18 @@ body {
   color: var(--danger);
 }
 
-/* ---- 分类标签（daily / weekly / question） ---- */
+/* ---- 分类标签（daily / today / weekly / question） ---- */
 .tag-cat-daily {
   background: var(--primary-light);
   border-color: var(--primary-border);
   color: var(--primary-dark);
+}
+
+/* 当日任务 = 一次性且当天截止，用暖红系强调紧迫感（与逾期态同色系但不加深） */
+.tag-cat-today {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #b91c1c;
 }
 
 .tag-cat-weekly {
@@ -2580,6 +2595,12 @@ button.upload-zone:disabled {
   background: rgba(167, 139, 250, 0.14);
   border-color: #5b21b6;
   color: #c4b5fd;
+}
+
+[data-theme="dark"] .tag-cat-today {
+  background: rgba(248, 113, 113, 0.12);
+  border-color: #7f1d1d;
+  color: #fca5a5;
 }
 
 [data-theme="dark"] .tag-cat-weekly {

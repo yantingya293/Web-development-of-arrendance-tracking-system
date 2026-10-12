@@ -14,6 +14,8 @@
  *           登录回跳消毒 / 登出后会话失效 / 未知 API 404
  *   Day 20：CSP / HSTS（仅 HTTPS）/ 关 X-Powered-By / CSRF Origin 校验 /
  *           登录时序等化 / 图片尺寸深检
+ *   v1.1.0：当日任务默认截止 + 搭档观察全链路（partner-tasks 可见性 /
+ *           打卡联动 / 开关收敛 / 未组队 409）
  *
  * 运行：node httpCheck.js（或 npm test）
  */
@@ -272,6 +274,64 @@ async function main() {
         stats.status === 200 && statsBody.tasks && statsBody.tasks.total >= 1,
         '协作统计异常: ' + stats.status + ' ' + String(stats.text).slice(0, 160)
       );
+    });
+    await check('当日任务 + 搭档观察：today 默认当晚截止 / partner-tasks 可见性与打卡联动（v1.1.0）', async () => {
+      const pad = (x) => String(x).padStart(2, '0');
+      const now = new Date();
+      const todayEnd = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} 23:59:59`;
+
+      // 1. 当日任务：不填截止 → 服务端兜底为当天 23:59:59；显式截止不被改写
+      const auto = await request('POST', '/api/tasks', {
+        cookie: cookieA,
+        json: { title: '当日任务·自动截止', category: 'today', partner_visible: '1' },
+      });
+      assert(auto.status === 201, '当日任务创建失败: ' + auto.text.slice(0, 120));
+      assert(auto.body.task.deadline === todayEnd, `自动截止异常: ${auto.body.task.deadline} ≠ ${todayEnd}`);
+      assert(auto.body.task.partner_visible === 1, 'partner_visible 未按 1 落库');
+      const manual = await request('POST', '/api/tasks', {
+        cookie: cookieA,
+        json: { title: '当日任务·显式截止', category: 'today', deadline: '2099-01-01T08:00' },
+      });
+      assert(manual.body.task.deadline === '2099-01-01 08:00:00', '显式截止被改写: ' + manual.body.task.deadline);
+      const sharedId = auto.body.task.id;
+
+      // 2. 搭档观察列表：B 只能看到 A 开放的任务，公共/未开放任务不可见
+      const hidden = await request('POST', '/api/tasks', { cookie: cookieA, json: { title: '未开放的任务', category: 'daily' } });
+      const noTeam401 = await request('GET', '/api/team/partner-tasks');
+      assert(noTeam401.status === 401, '未登录 partner-tasks 应 401');
+      const listB = await request('GET', '/api/team/partner-tasks', { cookie: cookieB });
+      assert(listB.status === 200, 'B 拉取观察列表失败: ' + listB.text.slice(0, 120));
+      assert(listB.body.tasks.some((t) => t.id === sharedId && t.today_checkin_at === null), '开放任务未出现在观察列表');
+      assert(!listB.body.tasks.some((t) => t.id === hidden.body.task.id), '未开放任务不应出现在观察列表');
+
+      // 3. A 打卡后 B 侧今日进度联动
+      const ck = await request('POST', '/api/checkins', {
+        cookie: cookieA,
+        form: multipart({ taskId: sharedId, note: '搭档观察打卡', photos: { __file: true, bytes: VALID_PNG, type: 'image/png', name: 'pv.png' } }),
+      });
+      assert(ck.status === 201 || ck.status === 200, '打卡失败: ' + ck.text.slice(0, 120));
+      if (ck.body.checkin) {
+        const rel = ck.body.checkin.image_paths[0];
+        if (rel) uploadedFiles.push(path.join(require('./src/middleware/upload').UPLOAD_DIR, rel.slice('uploads/'.length)));
+      }
+      const listB2 = await request('GET', '/api/team/partner-tasks', { cookie: cookieB });
+      const seen = listB2.body.tasks.find((t) => t.id === sharedId);
+      assert(seen && /^\d{2}:\d{2}$/.test(seen.today_checkin_at), '打卡后 today_checkin_at 未联动');
+
+      // 4. 编辑关掉观察开关后，B 列表即时收敛（勾选框取消 → 显式 0 的保存路径）
+      const off = await request('PUT', `/api/tasks/${sharedId}`, {
+        cookie: cookieA,
+        json: { title: '当日任务·自动截止', category: 'today', deadline: todayEnd, partner_visible: '0' },
+      });
+      assert(off.status === 200 && off.body.task.partner_visible === 0, '关闭观察开关失败');
+      const listB3 = await request('GET', '/api/team/partner-tasks', { cookie: cookieB });
+      assert(!listB3.body.tasks.some((t) => t.id === sharedId), '关闭开关后任务仍可见');
+
+      // 5. 未组队用户 → 409（与共同任务口径一致）。复用 admin 登录验证，
+      //    不再新注册用户——注册接口按 IP 限流，多余注册会挤掉后续头像用例的配额
+      const loginAdm = await request('POST', '/api/auth/login', { json: { account: 'admin', password: 'admin123' } });
+      const noTeam = await request('GET', '/api/team/partner-tasks', { cookie: cookieOf(loginAdm) });
+      assert(noTeam.status === 409, '未组队应 409，实际 ' + noTeam.status);
     });
     await check('邀请限流：认证后枚举通道超阈值 429（Day 21 复测加固）', async () => {
       let saw429 = false;

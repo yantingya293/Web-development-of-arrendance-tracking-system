@@ -3,16 +3,24 @@
  *
  * 模块说明：
  *   listSoloTasks(userId)                      当前用户可见的单人任务（自己的 + 公共），读取前自动标记逾期
- *   createSoloTask(userId, payload)            新建单人任务（校验 title / category / deadline）
+ *   createSoloTask(userId, payload)            新建单人任务（校验 title / category / deadline / partner_visible）
  *   updateSoloTask(user, taskId, payload)      整体更新任务内容（主人或管理员）
  *   updateSoloTaskStatus(user, taskId, status) 状态流转（unstarted / in_progress / completed）
  *   deleteSoloTask(user, taskId)               删除任务（主人或管理员）
+ *   listPartnerSharedTasks(userId)             搭档对我开放观察的单人任务（v1.1.0，只读监督视图）
  *
- * 策略约定（Day 5 拍板）：
- *   * 分类 category：daily（每日任务）/ weekly（每周重点）/ question（学习问题），默认 daily
+ * 策略约定（Day 5 拍板，v1.1.0 增补）：
+ *   * 分类 category：daily（每日任务）/ today（当日任务）/ weekly（每周重点）/
+ *     question（学习问题），默认 daily。当日任务是一次性任务：未填截止时间时由
+ *     服务层兜底补「创建/修改当天 23:59:59」，次日未完成即自动逾期——与每日任务的
+ *     长期重复语义相对
  *   * 标题 1–50 字符，说明 ≤ 500 字符；截止时间可空，接受 'YYYY-MM-DD'、
  *     'YYYY-MM-DD HH:MM[:SS]' 与 datetime-local 的 'YYYY-MM-DDTHH:MM'，统一归一为
  *     'YYYY-MM-DD HH:MM:SS' 存储（只给日期时按当天 23:59:59 截止）
+ *   * partner_visible（搭档观察，v1.1.0）：任务级开关，1 = 当前 active 队伍的搭档可在
+ *     双人协作广场只读查看该任务的完成状态与每日打卡情况；跟随任务而非队伍——解绑
+ *     后搭档自然看不到，日后与他人重新组队则对新搭档同样生效。公共任务（owner_id 为
+ *     NULL）无搭档语义，恒为 0
  *   * 'overdue' 不开放手动设置：读取时自动把过截止且未完成的任务标记为逾期（sweepOverdue）
  *   * 权限：任务主人或管理员可改可删；公共任务（owner_id 为 NULL）仅管理员可改删，
  *     普通用户对其只读（打卡入口在 Day 6 接入）
@@ -20,7 +28,7 @@
 const { getDb } = require('../db/db');
 const { removeStoredFiles } = require('../middleware/upload');
 
-const CATEGORIES = ['daily', 'weekly', 'question'];
+const CATEGORIES = ['daily', 'today', 'weekly', 'question'];
 const USER_SETTABLE_STATUS = ['unstarted', 'in_progress', 'completed'];
 
 function httpError(status, message, errors) {
@@ -71,6 +79,12 @@ function normalizeDeadline(raw) {
   return s;
 }
 
+/** 前端勾选框 / JSON 布尔统一归一为 0/1（未传视为关闭） */
+function parsePartnerVisible(raw) {
+  if (raw === true || raw === 1) return 1;
+  return ['1', 'true', 'on', 'yes'].includes(String(raw).trim().toLowerCase()) ? 1 : 0;
+}
+
 function validateTaskPayload(payload) {
   const errors = {};
 
@@ -90,7 +104,10 @@ function validateTaskPayload(payload) {
   const deadline = normalizeDeadline(payload.deadline);
   if (deadline === 'invalid') errors.deadline = '截止时间格式不正确';
 
-  return { errors, value: { title, description, category, deadline } };
+  return {
+    errors,
+    value: { title, description, category, deadline, partner_visible: parsePartnerVisible(payload.partner_visible) },
+  };
 }
 
 function findTaskById(id) {
@@ -127,14 +144,26 @@ function listSoloTasks(userId) {
     .all(userId);
 }
 
+/** 当天 23:59:59（服务器本地时间）——当日任务未填截止时间时的兜底值 */
+function todayEndLocal() {
+  return getDb().prepare("SELECT date('now', 'localtime') || ' 23:59:59' AS d").get().d;
+}
+
+/** 当日任务的一次性语义兜底：无截止时间时按当天 24 点前截止（次日未完成自动逾期） */
+function applyTodayDeadline(value) {
+  if (value.category === 'today' && !value.deadline) value.deadline = todayEndLocal();
+  return value;
+}
+
 function createSoloTask(userId, payload) {
   const { errors, value } = validateTaskPayload(payload);
   if (Object.keys(errors).length) throw httpError(400, '表单校验未通过', errors);
+  applyTodayDeadline(value);
 
   const info = getDb()
     .prepare(
-      `INSERT INTO tasks (owner_id, type, category, title, description, deadline)
-       VALUES (?, 'solo', @category, @title, @description, @deadline)`
+      `INSERT INTO tasks (owner_id, type, category, title, description, deadline, partner_visible)
+       VALUES (?, 'solo', @category, @title, @description, @deadline, @partner_visible)`
     )
     .run(userId, value);
   return findTaskById(info.lastInsertRowid);
@@ -144,15 +173,62 @@ function updateSoloTask(user, taskId, payload) {
   const row = getManagedTask(user, taskId);
   const { errors, value } = validateTaskPayload(payload);
   if (Object.keys(errors).length) throw httpError(400, '表单校验未通过', errors);
+  applyTodayDeadline(value);
 
   getDb()
     .prepare(
       `UPDATE tasks
-       SET category = @category, title = @title, description = @description, deadline = @deadline
+       SET category = @category, title = @title, description = @description,
+           deadline = @deadline, partner_visible = @partner_visible
        WHERE id = @id`
     )
     .run({ ...value, id: row.id });
   return findTaskById(row.id);
+}
+
+/**
+ * 搭档对我开放观察的单人任务（v1.1.0 搭档监督视图，只读）：
+ *   * 必须处于 active 队伍，否则 409（与共同任务口径一致）
+ *   * 只取搭档自己的任务（type=solo 且 owner=搭档且 partner_visible=1），
+ *     公共任务不属于任何人、不在此列
+ *   * 每个任务附带搭档「今日是否已打卡 + 打卡时刻」，供监督视图渲染
+ */
+function listPartnerSharedTasks(userId) {
+  const db = getDb();
+  const team = db
+    .prepare("SELECT * FROM teams WHERE status = 'active' AND (user_a = ? OR user_b = ?)")
+    .get(userId, userId);
+  if (!team) throw httpError(409, '请先绑定学习搭档');
+
+  const partnerId = team.user_a === userId ? team.user_b : team.user_a;
+  sweepOverdue();
+
+  const tasks = db
+    .prepare(
+      `SELECT id, category, title, description, deadline, status, created_at
+       FROM tasks
+       WHERE type = 'solo' AND owner_id = ? AND partner_visible = 1
+       ORDER BY CASE status
+                  WHEN 'in_progress' THEN 0
+                  WHEN 'unstarted' THEN 1
+                  WHEN 'overdue' THEN 2
+                  ELSE 3
+                END,
+                deadline IS NULL,
+                deadline,
+                id DESC`
+    )
+    .all(partnerId);
+
+  const today = db.prepare("SELECT date('now', 'localtime') AS d").get().d;
+  const todayMap = new Map(
+    db
+      .prepare('SELECT task_id, substr(submitted_at, 12, 5) AS at FROM checkins WHERE user_id = ? AND day = ?')
+      .all(partnerId, today)
+      .map((r) => [r.task_id, r.at])
+  );
+
+  return tasks.map((t) => ({ ...t, today_checkin_at: todayMap.get(t.id) || null }));
 }
 
 function updateSoloTaskStatus(user, taskId, status) {
@@ -201,15 +277,17 @@ function listPublicTasks() {
     .all();
 }
 
-/** 管理员发布公共任务：复用单人任务的校验与截止归一化，owner_id 固定 NULL */
+/** 管理员发布公共任务：复用单人任务的校验与截止归一化，owner_id 固定 NULL；
+    公共任务无搭档语义，partner_visible 恒为 0 */
 function createPublicTask(payload) {
   const { errors, value } = validateTaskPayload(payload);
   if (Object.keys(errors).length) throw httpError(400, '表单校验未通过', errors);
+  applyTodayDeadline(value);
 
   const info = getDb()
     .prepare(
-      `INSERT INTO tasks (owner_id, type, category, title, description, deadline)
-       VALUES (NULL, 'solo', @category, @title, @description, @deadline)`
+      `INSERT INTO tasks (owner_id, type, category, title, description, deadline, partner_visible)
+       VALUES (NULL, 'solo', @category, @title, @description, @deadline, 0)`
     )
     .run(value);
   return findTaskById(info.lastInsertRowid);
@@ -231,6 +309,7 @@ module.exports = {
   updateSoloTask,
   updateSoloTaskStatus,
   deleteSoloTask,
+  listPartnerSharedTasks,
   listPublicTasks,
   createPublicTask,
   deletePublicTask,

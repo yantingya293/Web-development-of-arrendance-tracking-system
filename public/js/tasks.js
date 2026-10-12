@@ -2,11 +2,13 @@
    加载 /api/tasks → 渲染任务卡片；支持分类筛选、新建、编辑、删除与状态流转。
    公共任务（owner_id 为 NULL）对普通用户只读，仅管理员可编辑删除。
    Day 6：未完成任务卡片新增「打卡」入口（经 window.selectCheckinTask 联动打卡表单），
-   并监听 checkin:created 事件在打卡成功后刷新列表。 */
+   并监听 checkin:created 事件在打卡成功后刷新列表。
+   v1.1.0：新增「当日任务」分类（today，一次性当天完成）；
+   新建/编辑弹窗增加「允许搭档观察监督」开关（partner_visible，勾选后搭档可在双人广场只读查看）。 */
 (function () {
   'use strict';
 
-  var CATEGORY_LABELS = { daily: '每日任务', weekly: '每周重点', question: '学习问题' };
+  var CATEGORY_LABELS = { daily: '每日任务', today: '当日任务', weekly: '每周重点', question: '学习问题' };
   var STATUS_LABELS = { unstarted: '未开始', in_progress: '进行中', completed: '已完成', overdue: '已逾期' };
 
   var listBody = document.getElementById('taskListBody');
@@ -26,6 +28,9 @@
   var formError = document.getElementById('taskFormError');
   var inputTitle = document.getElementById('taskTitle');
   var submitBtn = form.querySelector('button[type="submit"]');
+  var categoryRow = document.getElementById('taskCategoryRow');
+  var todayHint = document.getElementById('taskTodayHint');
+  var partnerVisibleInput = document.getElementById('taskPartnerVisible');
 
   var tasks = [];
   var filter = 'all';
@@ -91,6 +96,7 @@
     var checkinable = canCheckin(t.status);
     var meta = [];
     if (t.owner_id === null) meta.push('公共任务');
+    if (t.partner_visible === 1) meta.push('搭档可观察');
     if (t.deadline) meta.push('截止 ' + fmtDeadline(t.deadline));
 
     return (
@@ -134,7 +140,7 @@
   }
 
   function updateTabCounts() {
-    var counts = { all: tasks.length, daily: 0, weekly: 0, question: 0 };
+    var counts = { all: tasks.length, daily: 0, today: 0, weekly: 0, question: 0 };
     tasks.forEach(function (t) {
       if (counts[t.category] !== undefined) counts[t.category]++;
     });
@@ -195,6 +201,14 @@
     if (tip) tip.textContent = msg || '';
   }
 
+  /** 「当日任务」选中时给出一次性截止语义提示（未选时隐藏） */
+  function syncTodayHint() {
+    if (!todayHint || !categoryRow) return;
+    var checked = categoryRow.querySelector('input[name="category"]:checked');
+    todayHint.hidden = !checked || checked.value !== 'today';
+  }
+  if (categoryRow) categoryRow.addEventListener('change', syncTodayHint);
+
   function openModal(task) {
     form.reset();
     clearFieldErrors();
@@ -205,13 +219,16 @@
       form.querySelector('#taskDesc').value = task.description || '';
       var radio = form.querySelector('input[name="category"][value="' + task.category + '"]');
       if (radio) radio.checked = true;
+      if (partnerVisibleInput) partnerVisibleInput.checked = task.partner_visible === 1;
       form.querySelector('#taskDeadline').value = task.deadline
         ? task.deadline.slice(0, 16).replace(' ', 'T')
         : '';
     } else {
       modalTitle.textContent = '新建任务';
       formId.value = '';
+      if (partnerVisibleInput) partnerVisibleInput.checked = false;
     }
+    syncTodayHint();
     modal.hidden = false;
     inputTitle.focus();
   }
@@ -237,6 +254,8 @@
 
     var data = {};
     new FormData(form).forEach(function (v, k) { data[k] = v; });
+    // 勾选框未勾选时不会出现在 FormData 里，这里显式携带 0/1，保证「取消勾选」也能保存
+    data.partner_visible = partnerVisibleInput && partnerVisibleInput.checked ? '1' : '0';
     if (!String(data.title || '').trim()) {
       setFieldError('title', '请填写任务标题');
       return;
@@ -258,6 +277,8 @@
         closeModal();
         window.showToast(id ? '任务已更新' : '任务已创建', 'success');
         load();
+        // 通知打卡表单刷新任务下拉（新建的当日任务可立即选择打卡，不必手动刷新页面）
+        document.dispatchEvent(new CustomEvent('tasks:changed'));
       })
       .catch(function () {
         formError.textContent = '网络异常，请稍后再试';

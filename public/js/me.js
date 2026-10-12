@@ -9,7 +9,7 @@
   'use strict';
 
   var WEEKDAY_SHORT = ['日', '一', '二', '三', '四', '五', '六'];
-  var CATEGORY_LABELS = { daily: '每日任务', weekly: '每周重点', question: '学习问题' };
+  var CATEGORY_LABELS = { daily: '每日任务', today: '当日任务', weekly: '每周重点', question: '学习问题' };
 
   /* ---------- 工具 ---------- */
 
